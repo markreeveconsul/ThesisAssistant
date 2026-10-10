@@ -1,84 +1,46 @@
-"""Per-document summaries restricted to retrieved project evidence."""
-
-import json
-from collections.abc import Iterator
-from datetime import UTC, datetime
+"""Document-filtered summaries using the same validated stream as chat."""
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
-from ollama import Client
 
 from app.api.deps import DbSession, require_owned_project
-from app.core.config import settings
-from app.models.models import ChatMessage, Conversation, Project, SourceFile
-from app.db.session import get_db
-from app.services.rag import NO_EVIDENCE_ANSWER, build_grounded_messages, cited_answer
+from app.models.models import Conversation, Project, SourceFile
+from app.services.generation import generate_answer, ready_evidence
 from app.services.vector_store import query_project_chunks
 
 router = APIRouter()
 
 
 @router.post("/{project_id}/files/{file_id}/summary")
-def summarize_file(
-    db: DbSession,
-    project_id: str,
-    file_id: str,
-    project: Project = Depends(require_owned_project),
-) -> StreamingResponse:
-    """Summarize only the selected file's indexed excerpts and preserve source locators."""
-    source = db.scalar(
-        select(SourceFile).where(SourceFile.id == file_id, SourceFile.project_id == project.id)
-    )
+def summarize_file(file_id: str, db: DbSession, project: Project = Depends(require_owned_project)) -> StreamingResponse:
+    source = db.scalar(select(SourceFile).where(SourceFile.id == file_id, SourceFile.project_id == project.id, SourceFile.status == "ready"))
     if source is None:
-        raise HTTPException(status_code=404, detail="File not found")
-
-    evidence = query_project_chunks(project.id, "aim objectives methodology findings limitations")
-    evidence = [chunk for chunk in evidence if chunk.get("file_id") == file_id]
-    if not evidence:
-        raise HTTPException(status_code=422, detail="The document has no retrievable text to summarize")
-
-    question = (
-        f"Summarize the aim, method, findings, and limitations of {source.filename}. "
-        "State when any section is not supported by the supplied excerpts."
-    )
-    client = Client(host=settings.ollama_base_url, timeout=settings.ollama_timeout_seconds)
-    stream = client.chat(
-        model=settings.ollama_chat_model,
-        messages=build_grounded_messages(question, evidence),
-        stream=True,
-        options={"temperature": 0},
-    )
+        raise HTTPException(404, "Ready source file not found")
+    try:
+        evidence = []
+        for section in ("aim objectives", "method participants procedure", "findings results", "limitations"):
+            for chunk in query_project_chunks(project.id, section, file_id):
+                if chunk not in evidence:
+                    evidence.append(chunk)
+        evidence = ready_evidence(db, project.id, evidence)
+        # Keep the evidence within the local model's context budget.
+        import tiktoken
+        encoder = tiktoken.get_encoding("cl100k_base")
+        budget = 5500
+        bounded = []
+        for chunk in evidence:
+            size = len(encoder.encode(str(chunk["text"]), disallowed_special=()))
+            if size <= budget:
+                bounded.append(chunk)
+                budget -= size
+        evidence = bounded
+    except Exception as exc:
+        raise HTTPException(503, "Summary retrieval unavailable. Check Ollama and the embedding index.") from exc
+    question = "Summarize this document's aim, method, findings, and limitations. Prefix each supported sentence with its section name. Omit unsupported sections; never infer missing details."
     conversation = Conversation(project_id=project.id)
     db.add(conversation)
     db.commit()
     db.refresh(conversation)
-
-    def generate() -> Iterator[str]:
-        raw = ""
-        try:
-            for chunk in stream:
-                fragment = chunk.message.content or ""
-                raw += fragment
-                yield f"data: {json.dumps({'type': 'token', 'text': fragment})}\n\n"
-            answer, citations = cited_answer(raw, evidence)
-        except Exception:
-            yield f"data: {json.dumps({'type': 'error', 'message': 'Ollama is unavailable or the response timed out.'})}\n\n"
-            return
-        db.add(
-            ChatMessage(
-                conversation_id=conversation.id,
-                role="assistant",
-                content=answer,
-                citations_json=json.dumps(citations),
-                created_at=datetime.now(UTC),
-            )
-        )
-        db.commit()
-        yield f"data: {json.dumps({'type': 'done', 'answer': answer, 'citations': citations, 'conversation_id': conversation.id})}\n\n"
-
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return StreamingResponse(generate_answer(db, conversation, question, evidence, summary=True), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

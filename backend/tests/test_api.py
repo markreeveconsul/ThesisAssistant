@@ -180,7 +180,7 @@ def test_upload_chat_and_saved_citation_end_to_end(
 
     fake_model_answer = "The primary outcome was mean nightly sleep duration [1]."
     monkeypatch.setattr(
-        "app.api.routes.chat.Client.chat",
+        "app.services.generation.Client.chat",
         lambda *_args, **_kwargs: iter(ChatChunk(piece) for piece in [fake_model_answer[:24], fake_model_answer[24:]]),
     )
     result = client.post(
@@ -191,7 +191,7 @@ def test_upload_chat_and_saved_citation_end_to_end(
     assert result.status_code == 200
     done = json.loads(result.text.strip().split("\n\n")[-1].removeprefix("data: "))
     assert done["type"] == "done"
-    assert done["citations"] == [{"filename": "trial-results.pdf", "page": 1, "evidence_id": "1"}]
+    assert done["citations"] == [{"filename": "trial-results.pdf", "page": 1, "evidence_id": "1", "file_id": file_id, "locator_type": "page"}]
     assert "[trial-results.pdf, p. 1]" in done["answer"]
 
     monkeypatch.setattr(vector_store.settings, "min_relevance_distance", -1.0)
@@ -318,3 +318,33 @@ def test_source_access_is_private_and_locator_matches(client, make_user, auth_he
     assert client.get(f"{root}/{file_id}/content", headers=auth_headers(stranger)).status_code == 404
     assert client.get(f"{root}/{file_id}/locator/1", headers=headers).json()["locator_type"] == "line"
     assert client.get(f"{root}/{file_id}/locator/1", headers=auth_headers(stranger)).status_code == 404
+
+
+def test_stream_never_exposes_uncited_or_invalid_segments(client, make_user, auth_headers, isolated_vector_store, monkeypatch):
+    _, token = make_user()
+    headers = auth_headers(token)
+    project = client.post("/api/v1/projects/", headers=headers, json={"name": "Validation"}).json()["id"]
+    root = f"/api/v1/projects/{project}"
+    client.post(root + "/files", headers=headers, files={"file": ("evidence.txt", b"primary outcome was sleep")})
+    monkeypatch.setattr(vector_store.settings, "min_relevance_distance", 2.0)
+    fragments = ["LEAK THIS SECRET", " [99].\n", "The primary outcome was sleep [1].\n", "Unsupported claim."]
+    monkeypatch.setattr("app.services.generation.Client.chat", lambda *a, **k: iter(SimpleNamespace(message=SimpleNamespace(content=text)) for text in fragments))
+    response = client.post(root + "/chat", headers=headers, json={"question": "primary outcome"})
+    assert "LEAK THIS SECRET" not in response.text
+    assert "Unsupported claim" not in response.text
+    assert "evidence.txt, line 1" in response.text
+    history = client.get(root + "/history", headers=headers).json()
+    assert len(history) == 2
+    assert history[-1]["citations"][0]["file_id"]
+
+
+def test_retrieval_offline_returns_actionable_error(client, make_user, auth_headers, monkeypatch):
+    _, token = make_user()
+    headers = auth_headers(token)
+    project = client.post("/api/v1/projects/", headers=headers, json={"name": "Offline"}).json()["id"]
+    def fail(*a, **k):
+        raise ConnectionError("offline")
+    monkeypatch.setattr("app.api.routes.chat.retrieve_evidence", fail)
+    response = client.post(f"/api/v1/projects/{project}/chat", headers=headers, json={"question": "anything"})
+    assert response.status_code == 503
+    assert "Ollama" in response.json()["detail"]
