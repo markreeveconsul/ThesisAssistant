@@ -1,16 +1,19 @@
 """User-isolated file upload, indexing and deletion endpoints."""
 
 import hashlib
-from pathlib import Path
 import re
+from pathlib import Path
+from typing import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
-from app.api.deps import DbSession, require_owned_project
+from app.api.deps import get_current_user, get_owned_project
 from app.core.config import settings
-from app.models.models import Project, SourceFile
+from app.db.session import get_db
+from app.models.models import Project, SourceFile, User
 from app.schemas import FileRead
 from app.services.chunking import chunk_pages
 from app.services.parsing import extract_pages
@@ -30,9 +33,11 @@ def safe_filename(filename: str) -> str:
 
 @router.get("/{project_id}/files", response_model=list[FileRead])
 def list_files(
-    db: DbSession,
-    project: Project = Depends(require_owned_project),
+    db: Annotated[Session, Depends(get_db)],
+    project_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> list[SourceFile]:
+    project = get_owned_project(project_id, current_user.id, db)
     return list(
         db.scalars(
             select(SourceFile)
@@ -45,10 +50,12 @@ def list_files(
 
 @router.post("/{project_id}/files", response_model=FileRead, status_code=status.HTTP_201_CREATED)
 def upload_file(
-    db: DbSession,
+    db: Annotated[Session, Depends(get_db)],
+    project_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
     file: UploadFile = File(...),
-    project: Project = Depends(require_owned_project),
 ) -> SourceFile:
+    project = get_owned_project(project_id, current_user.id, db)
     filename = safe_filename(file.filename or "source")
     extension = Path(filename).suffix.lower()
     if extension not in _ALLOWED:
@@ -114,10 +121,12 @@ def upload_file(
 
 @router.delete("/{project_id}/files/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_file(
-    db: DbSession,
+    db: Annotated[Session, Depends(get_db)],
+    project_id: str,
     file_id: str,
-    project: Project = Depends(require_owned_project),
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> None:
+    project = get_owned_project(project_id, current_user.id, db)
     source = db.scalar(
         select(SourceFile).where(SourceFile.id == file_id, SourceFile.project_id == project.id)
     )

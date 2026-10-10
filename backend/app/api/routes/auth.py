@@ -17,7 +17,7 @@ router = APIRouter()
 
 
 @router.post("/register", response_model=UserPublic, status_code=status.HTTP_201_CREATED)
-def register(payload: UserCreate, db: DbSession) -> User:
+def register(payload: UserCreate, db: Annotated[Session, Depends(get_db)]) -> User:
     """Create a user with a uniquely indexed normalized email and Argon2 password."""
     normalized_email = str(payload.email).strip().lower()
     if db.scalar(select(User).where(User.email == normalized_email)) is not None:
@@ -46,6 +46,5 @@ def login(
     return TokenResponse(access_token=create_access_token(user.id))
 
 
-@router.get("/me", response_model=UserPublic)
 def me(current_user: Annotated[User, Depends(get_current_user)]) -> User:
     return current_user
