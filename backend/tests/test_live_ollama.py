@@ -50,6 +50,10 @@ def test_real_three_pdf_question_citations_and_abstention(client, make_user, aut
         absent = final_event(client.post(root + "/chat", headers=headers, json={"question": "What was the exact funding amount in US dollars for this trial?"}))
         assert absent["answer"] == "I can't find this in your documents.", absent
         assert absent["citations"] == []
+        summary = final_event(client.post(root + "/files/" + file_ids["methods.pdf"] + "/summary", headers=headers))
+        assert "Method: The method was a randomized controlled trial using sleep diaries." in summary["answer"], summary
+        assert "Aim: I can't find this in your documents." in summary["answer"], summary
+        assert all(citation["file_id"] == file_ids["methods.pdf"] for citation in summary["citations"]), summary
     finally:
         client.delete(root, headers=headers)
         vector_store.get_collection.cache_clear()
