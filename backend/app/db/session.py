@@ -14,7 +14,7 @@ def _create_engine():
         if settings.sqlite_path is not None:
             Path(settings.sqlite_path).parent.mkdir(parents=True, exist_ok=True)
         engine = create_engine(
-            settings.database_url,
+            f"sqlite:///{settings.sqlite_path}" if settings.sqlite_path else settings.database_url,
             connect_args={"check_same_thread": False},
         )
 
