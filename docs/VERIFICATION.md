@@ -7,7 +7,7 @@ Verified against the implementation in this repository:
 - Backend: 44 tests passed with `RUN_OLLAMA_TESTS=1`, including actual local embedding/chat inference. Without that flag, 43 pass and the live-model test is skipped.
 - Live-model test: upload three synthetic PDFs; answer the sleep-duration question with a citation to `trial.pdf`, page 2; abstain on unreported funding; summarize a methods-only document without inventing an aim.
 - Browser: Playwright + headless Edge passed the full signup/project/upload/chat/source-preview/note/history/summary/file-delete/project-delete journey against disposable servers and real Ollama. The final browser test took approximately 1 minute 20 seconds, excluding server startup.
-- TypeScript and Next.js production build passed during implementation; final production build is checked again before handoff.
+- Final TypeScript/Next.js production build passed. A temporary clean Git clone also installed successfully into a fresh Python virtual environment, passed 43 deterministic tests (one live test intentionally skipped), and passed `npm ci` followed by a production build.
 - `pip check`: no broken requirements.
 - `npm audit`: zero reported vulnerabilities after updating the transitive PostCSS dependency.
 
