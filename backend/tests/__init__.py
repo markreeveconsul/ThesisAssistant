@@ -1,0 +1,1 @@
+"""ThesisAssistant backend test suite."""
