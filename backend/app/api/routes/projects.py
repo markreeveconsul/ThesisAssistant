@@ -14,6 +14,8 @@ from app.models.models import Project, User
 from app.schemas import ProjectCreate, ProjectRead
 from app.services.vector_store import delete_project_chunks
 
+from app.services.lifecycle import project_mutation
+
 router = APIRouter()
 
 
@@ -60,6 +62,7 @@ def read_project(
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+@project_mutation
 def delete_project(
     project_id: str,
     db: Annotated[Session, Depends(get_db)],

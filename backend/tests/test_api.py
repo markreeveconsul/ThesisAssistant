@@ -325,7 +325,7 @@ def test_stream_never_exposes_uncited_or_invalid_segments(client, make_user, aut
     headers = auth_headers(token)
     project = client.post("/api/v1/projects/", headers=headers, json={"name": "Validation"}).json()["id"]
     root = f"/api/v1/projects/{project}"
-    client.post(root + "/files", headers=headers, files={"file": ("evidence.txt", b"primary outcome was sleep")})
+    client.post(root + "/files", headers=headers, files={"file": ("evidence.txt", b"The primary outcome was sleep.")})
     monkeypatch.setattr(vector_store.settings, "min_relevance_distance", 2.0)
     fragments = ["LEAK THIS SECRET", " [99].\n", "The primary outcome was sleep [1].\n", "Unsupported claim."]
     monkeypatch.setattr("app.services.generation.Client.chat", lambda *a, **k: iter(SimpleNamespace(message=SimpleNamespace(content=text)) for text in fragments))
@@ -348,3 +348,62 @@ def test_retrieval_offline_returns_actionable_error(client, make_user, auth_head
     response = client.post(f"/api/v1/projects/{project}/chat", headers=headers, json={"question": "anything"})
     assert response.status_code == 503
     assert "Ollama" in response.json()["detail"]
+
+
+def test_partial_index_failure_remains_recoverable_when_cleanup_is_offline(client, make_user, auth_headers, isolated_vector_store, monkeypatch):
+    from app.api.routes import files
+    _, token = make_user()
+    headers = auth_headers(token)
+    root = "/api/v1/projects/" + client.post("/api/v1/projects/", headers=headers, json={"name": "Partial"}).json()["id"]
+    original_upsert, original_delete = files.upsert_chunks, files.delete_file_chunks
+    def partial(*args):
+        original_upsert(*args)
+        raise ConnectionError("failed after first batch")
+    def failed_cleanup(*args):
+        raise OSError("index locked")
+    monkeypatch.setattr(files, "upsert_chunks", partial)
+    monkeypatch.setattr(files, "delete_file_chunks", failed_cleanup)
+    assert client.post(root + "/files", headers=headers, files={"file": ("partial.txt", b"primary outcome")}).status_code == 503
+    source = client.get(root + "/files", headers=headers).json()[0]
+    assert source["status"] == "failed"
+    response = client.post(root + "/chat", headers=headers, json={"question": "primary outcome"})
+    assert "I can't find this in your documents." in response.text
+    monkeypatch.setattr(files, "upsert_chunks", original_upsert)
+    monkeypatch.setattr(files, "delete_file_chunks", original_delete)
+    assert client.post(root + "/files", headers=headers, files={"file": ("partial.txt", b"primary outcome")}).status_code == 201
+    assert len(client.get(root + "/files", headers=headers).json()) == 1
+
+
+def test_project_delete_cascades_actual_chat_and_note_rows(client, make_user, auth_headers, isolated_vector_store, test_session_factory):
+    from app.models.models import Conversation, Note
+    _, token = make_user()
+    headers = auth_headers(token)
+    project = client.post("/api/v1/projects/", headers=headers, json={"name": "Cascade"}).json()["id"]
+    with test_session_factory() as db:
+        conversation = Conversation(project_id=project)
+        db.add(conversation)
+        db.flush()
+        message = ChatMessage(conversation_id=conversation.id, role="assistant", content="Saved")
+        note = Note(project_id=project, title="Saved", content="Evidence")
+        db.add_all([message, note])
+        db.commit()
+        ids = conversation.id, message.id, note.id
+    assert client.delete(f"/api/v1/projects/{project}", headers=headers).status_code == 204
+    with test_session_factory() as db:
+        assert db.get(Conversation, ids[0]) is None
+        assert db.get(ChatMessage, ids[1]) is None
+        assert db.get(Note, ids[2]) is None
+
+
+def test_reindex_rebuilds_existing_sources(client, make_user, auth_headers, isolated_vector_store, monkeypatch, test_session_factory):
+    from app import reindex
+    _, token = make_user()
+    headers = auth_headers(token)
+    project = client.post("/api/v1/projects/", headers=headers, json={"name": "Rebuild"}).json()["id"]
+    response = client.post(f"/api/v1/projects/{project}/files", headers=headers, files={"file": ("rebuild.txt", b"primary outcome")})
+    assert response.status_code == 201
+    monkeypatch.setattr(reindex, "SessionLocal", test_session_factory)
+    monkeypatch.setattr(reindex, "init_db", lambda: None)
+    monkeypatch.setattr(vector_store.settings, "ollama_embed_model", "replacement")
+    reindex.main()
+    assert query_project_chunks(project, "primary outcome")[0]["file_id"] == response.json()["id"]

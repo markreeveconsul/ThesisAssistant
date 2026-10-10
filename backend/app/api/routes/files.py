@@ -21,6 +21,8 @@ from app.services.chunking import chunk_pages
 from app.services.parsing import extract_pages
 from app.services.vector_store import delete_file_chunks, upsert_chunks
 
+from app.services.lifecycle import project_mutation
+
 router = APIRouter()
 _ALLOWED = {".pdf", ".docx", ".txt"}
 _SAFE_FILENAME = re.compile(r"[^A-Za-z0-9._ -]+")
@@ -51,6 +53,7 @@ def list_files(
 
 
 @router.post("/{project_id}/files", response_model=FileRead, status_code=status.HTTP_201_CREATED)
+@project_mutation
 def upload_file(
     db: Annotated[Session, Depends(get_db)],
     project_id: str,
@@ -143,6 +146,7 @@ def upload_file(
 
 
 @router.delete("/{project_id}/files/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
+@project_mutation
 def delete_file(
     db: Annotated[Session, Depends(get_db)],
     project_id: str,

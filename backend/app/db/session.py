@@ -3,7 +3,7 @@
 from collections.abc import Generator
 from pathlib import Path
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, update
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.core.config import settings
@@ -50,3 +50,7 @@ def init_db() -> None:
     from app.models import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    # A stopped single-worker API cannot still be processing these uploads.
+    with SessionLocal() as session:
+        session.execute(update(models.SourceFile).where(models.SourceFile.status == "processing").values(status="failed"))
+        session.commit()

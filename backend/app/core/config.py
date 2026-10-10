@@ -51,7 +51,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_limits(self):
-        if self.app_env != "development" and (len(self.secret_key) < 32 or self.secret_key.startswith("insecure-")):
+        if self.app_env != "development" and (len(self.secret_key) < 32 or self.secret_key.startswith(("insecure-", "replace-this"))):
             raise ValueError("Set a random SECRET_KEY of at least 32 characters outside development")
         if not 0 <= self.chunk_overlap_tokens < self.chunk_size_tokens:
             raise ValueError("Require 0 <= CHUNK_OVERLAP_TOKENS < CHUNK_SIZE_TOKENS")

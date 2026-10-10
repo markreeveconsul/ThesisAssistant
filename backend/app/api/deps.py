@@ -1,6 +1,7 @@
 """Dependencies for authenticated user and owner-scoped project access."""
 
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -42,6 +43,10 @@ def get_owned_project(
     db: Session,
 ) -> Project:
     """Return a project only if it exists and is owned by the current user."""
+    try:
+        UUID(project_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=404, detail="Project not found")
     project = db.get(Project, project_id)
     if project is None or project.owner_id != owner_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
