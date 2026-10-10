@@ -66,8 +66,16 @@ def delete_project(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> None:
     project = get_owned_project(project_id, current_user.id, db)
-    delete_project_chunks(project.id)
+    if any(source.status == "processing" for source in project.files):
+        raise HTTPException(409, "Wait for indexing to finish before deleting this project")
     for source in project.files:
-        Path(source.storage_path).unlink(missing_ok=True)
+        source.status = "deleting"
+    db.commit()
+    try:
+        delete_project_chunks(project.id)
+        for source in project.files:
+            Path(source.storage_path).unlink(missing_ok=True)
+    except Exception as exc:
+        raise HTTPException(503, "Project cleanup failed; retry deletion") from exc
     db.delete(project)
     db.commit()

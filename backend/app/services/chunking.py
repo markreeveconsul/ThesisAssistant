@@ -18,7 +18,7 @@ def chunk_pages(
     overlap_tokens: int | None = None,
 ) -> list[dict[str, str | int]]:
     """Split each source page into overlapping token chunks without losing locators."""
-    chunk_size = chunk_size_tokens or settings.chunk_size_tokens
+    chunk_size = settings.chunk_size_tokens if chunk_size_tokens is None else chunk_size_tokens
     overlap = settings.chunk_overlap_tokens if overlap_tokens is None else overlap_tokens
     if chunk_size < 1 or overlap < 0 or overlap >= chunk_size:
         raise ValueError("Require chunk_size >= 1 and 0 <= overlap < chunk_size")
@@ -26,7 +26,7 @@ def chunk_pages(
     step = chunk_size - overlap
     chunks: list[dict[str, str | int]] = []
     for page in pages:
-        encoded = _encoder.encode(page.text)
+        encoded = _encoder.encode(page.text, disallowed_special=())
         for start in range(0, len(encoded), step):
             text = _encoder.decode(encoded[start : start + chunk_size]).strip()
             if text:
@@ -36,6 +36,10 @@ def chunk_pages(
                         "text": text,
                         "filename": filename,
                         "page": page.page_number,
+                        "locator_type": page.locator_type,
                     }
                 )
+            if len(chunks) > settings.max_chunks:
+                from fastapi import HTTPException
+                raise HTTPException(413, "The document exceeds the chunk limit")
     return chunks

@@ -3,7 +3,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -30,7 +30,11 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_chat_model: str = "qwen2.5:3b"
     ollama_embed_model: str = "nomic-embed-text"
-    max_upload_mb: int = 25
+    max_upload_mb: int = Field(default=25, ge=1, le=100)
+    max_pdf_pages: int = Field(default=1000, ge=1)
+    max_extracted_chars: int = Field(default=2_000_000, ge=1)
+    max_docx_expanded_mb: int = Field(default=100, ge=1)
+    max_chunks: int = Field(default=10000, ge=1)
     chunk_size_tokens: int = 700
     chunk_overlap_tokens: int = 100
     retrieval_top_k: int = 5
@@ -44,6 +48,16 @@ class Settings(BaseSettings):
         if not value.strip():
             raise ValueError("SECRET_KEY must not be empty")
         return value
+
+    @model_validator(mode="after")
+    def validate_limits(self):
+        if self.app_env != "development" and (len(self.secret_key) < 32 or self.secret_key.startswith("insecure-")):
+            raise ValueError("Set a random SECRET_KEY of at least 32 characters outside development")
+        if not 0 <= self.chunk_overlap_tokens < self.chunk_size_tokens:
+            raise ValueError("Require 0 <= CHUNK_OVERLAP_TOKENS < CHUNK_SIZE_TOKENS")
+        if min(self.retrieval_top_k, self.ollama_timeout_seconds, self.access_token_expire_minutes) <= 0:
+            raise ValueError("Retrieval, timeout and expiration limits must be positive")
+        return self
 
     @property
     def sqlite_path(self) -> Path | None:

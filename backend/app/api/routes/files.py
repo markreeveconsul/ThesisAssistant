@@ -7,7 +7,9 @@ from typing import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_owned_project
@@ -80,7 +82,15 @@ def upload_file(
         select(SourceFile).where(SourceFile.project_id == project.id, SourceFile.sha256 == digest)
     )
     if exists is not None:
-        raise HTTPException(status_code=409, detail="This file is already uploaded to the project")
+        if exists.status != "failed":
+            raise HTTPException(status_code=409, detail="This file is already uploaded to the project")
+        try:
+            delete_file_chunks(exists.id)
+            Path(exists.storage_path).unlink(missing_ok=True)
+        except Exception as exc:
+            raise HTTPException(503, "Previous indexing cleanup failed; retry later") from exc
+        db.delete(exists)
+        db.commit()
 
     pages, warning = extract_pages(filename, content)
     chunks = chunk_pages(pages, filename)
@@ -99,15 +109,28 @@ def upload_file(
         warning=warning,
     )
     db.add(source)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(409, "This file is already uploaded to the project") from exc
 
     try:
         storage_path.write_bytes(content)
         upsert_chunks(chunks, project.id, file_id)
     except Exception as exc:
         db.rollback()
-        delete_file_chunks(file_id)
-        storage_path.unlink(missing_ok=True)
+        source.status = "failed"
+        db.commit()
+        try:
+            delete_file_chunks(file_id)
+            storage_path.unlink(missing_ok=True)
+        except Exception:
+            # Retain the failed row so deletion/retry can find any residual data.
+            pass
+        else:
+            db.delete(source)
+            db.commit()
         raise HTTPException(
             status_code=503,
             detail="Document indexing failed. Confirm Ollama and both configured models are available.",
@@ -132,7 +155,37 @@ def delete_file(
     )
     if source is None:
         raise HTTPException(status_code=404, detail="File not found")
-    delete_file_chunks(file_id)
-    Path(source.storage_path).unlink(missing_ok=True)
+    if source.status == "processing":
+        raise HTTPException(409, "Wait for indexing to finish before deleting this file")
+    source.status = "deleting"
+    db.commit()
+    try:
+        delete_file_chunks(file_id)
+        Path(source.storage_path).unlink(missing_ok=True)
+    except Exception as exc:
+        raise HTTPException(503, "File cleanup failed; retry deletion") from exc
     db.delete(source)
     db.commit()
+
+
+@router.get("/{project_id}/files/{file_id}/content")
+def read_source_content(project_id: str, file_id: str, db: Annotated[Session, Depends(get_db)], current_user: Annotated[User, Depends(get_current_user)]) -> FileResponse:
+    project = get_owned_project(project_id, current_user.id, db)
+    source = db.scalar(select(SourceFile).where(SourceFile.id == file_id, SourceFile.project_id == project.id))
+    if source is None or source.status != "ready" or not Path(source.storage_path).is_file():
+        raise HTTPException(404, "Source file is unavailable")
+    return FileResponse(source.storage_path, media_type=source.content_type, filename=source.filename,
+                        content_disposition_type="inline", headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+
+
+@router.get("/{project_id}/files/{file_id}/locator/{number}")
+def read_source_locator(project_id: str, file_id: str, number: int, db: Annotated[Session, Depends(get_db)], current_user: Annotated[User, Depends(get_current_user)]) -> dict[str, object]:
+    project = get_owned_project(project_id, current_user.id, db)
+    source = db.scalar(select(SourceFile).where(SourceFile.id == file_id, SourceFile.project_id == project.id))
+    if source is None or source.status != "ready" or not Path(source.storage_path).is_file():
+        raise HTTPException(404, "Source file is unavailable")
+    pages, _ = extract_pages(source.filename, Path(source.storage_path).read_bytes())
+    page = next((page for page in pages if page.page_number == number), None)
+    if page is None:
+        raise HTTPException(404, "Source location not found")
+    return {"filename": source.filename, "number": number, "locator_type": page.locator_type, "text": page.text}

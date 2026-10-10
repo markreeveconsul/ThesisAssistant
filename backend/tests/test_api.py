@@ -275,3 +275,46 @@ def test_nested_routes_reject_other_users(client, make_user, auth_headers):
     ]:
         assert client.request(method, root + path, headers=auth_headers(stranger), json=body).status_code == 404
     assert client.post(root + "/files", headers=auth_headers(stranger), files={"file": ("private.txt", b"private")}).status_code == 404
+
+
+def test_index_failure_cleans_up_and_allows_retry(client, make_user, auth_headers, monkeypatch, isolated_vector_store, tmp_path):
+    _, token = make_user()
+    headers = auth_headers(token)
+    project = client.post("/api/v1/projects/", headers=headers, json={"name": "Recovery"}).json()["id"]
+    from app.api.routes import files
+    original = files.upsert_chunks
+    def fail(*args):
+        raise ConnectionError("offline")
+    monkeypatch.setattr(files, "upsert_chunks", fail)
+    path = f"/api/v1/projects/{project}/files"
+    assert client.post(path, headers=headers, files={"file": ("retry.txt", b"research evidence")}).status_code == 503
+    assert client.get(path, headers=headers).json() == []
+    assert not list((tmp_path / "uploads").rglob("*.txt"))
+    monkeypatch.setattr(files, "upsert_chunks", original)
+    assert client.post(path, headers=headers, files={"file": ("retry.txt", b"research evidence")}).status_code == 201
+
+
+def test_vector_query_filters_project_and_document_before_top_k(isolated_vector_store, monkeypatch):
+    monkeypatch.setattr(vector_store.settings, "retrieval_top_k", 1)
+    monkeypatch.setattr(vector_store.settings, "min_relevance_distance", 2.0)
+    for project, file_id in [("a", "one"), ("a", "two"), ("b", "private")]:
+        upsert_chunks([{"id": file_id, "text": "primary outcome", "filename": file_id + ".pdf", "page": 2}], project, file_id)
+    results = query_project_chunks("a", "primary outcome", "two")
+    assert len(results) == 1
+    assert results[0]["project_id"] == "a" and results[0]["file_id"] == "two"
+    monkeypatch.setattr(vector_store.settings, "ollama_embed_model", "changed-model")
+    with pytest.raises(RuntimeError, match="reindex"):
+        query_project_chunks("a", "primary outcome")
+
+
+def test_source_access_is_private_and_locator_matches(client, make_user, auth_headers, isolated_vector_store):
+    _, token = make_user()
+    _, stranger = make_user()
+    headers = auth_headers(token)
+    project = client.post("/api/v1/projects/", headers=headers, json={"name": "Sources"}).json()["id"]
+    root = f"/api/v1/projects/{project}/files"
+    file_id = client.post(root, headers=headers, files={"file": ("source.txt", b"first\\n\\nthird")}).json()["id"]
+    assert client.get(f"{root}/{file_id}/content", headers=headers).content == b"first\\n\\nthird"
+    assert client.get(f"{root}/{file_id}/content", headers=auth_headers(stranger)).status_code == 404
+    assert client.get(f"{root}/{file_id}/locator/1", headers=headers).json()["locator_type"] == "line"
+    assert client.get(f"{root}/{file_id}/locator/1", headers=auth_headers(stranger)).status_code == 404

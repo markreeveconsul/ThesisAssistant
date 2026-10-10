@@ -1,76 +1,88 @@
-"""PDF/DOCX/TXT text extraction with page locators and OCR warnings."""
+"""Bounded extraction with physical PDF pages and honest text locators."""
 
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import PurePath
+from zipfile import BadZipFile, ZipFile
 
 import fitz
 from docx import Document
-from fastapi import HTTPException, status
+from docx.table import Table
+from docx.text.paragraph import Paragraph
+from fastapi import HTTPException
+from lxml.etree import XMLSyntaxError
+
+from app.core.config import settings
 
 
 @dataclass(frozen=True)
 class ExtractedPage:
-    """One page/locator's text and citation number."""
-
     page_number: int
     text: str
+    locator_type: str = "page"
+
+
+def _bounded(pages: list[ExtractedPage]) -> list[ExtractedPage]:
+    if sum(len(page.text) for page in pages) > settings.max_extracted_chars:
+        raise HTTPException(413, "The extracted document exceeds the text limit")
+    if not any(page.text.strip() for page in pages):
+        raise HTTPException(422, "No readable text was found in the document")
+    return pages
 
 
 def extract_pages(filename: str, content: bytes) -> tuple[list[ExtractedPage], str | None]:
-    """Extract text from supported formats; report unreadable/image-only sources."""
     suffix = PurePath(filename).suffix.lower()
     if not content:
-        raise HTTPException(status_code=422, detail="The uploaded file is empty")
-
+        raise HTTPException(422, "The uploaded file is empty")
     try:
         if suffix == ".pdf":
             return _extract_pdf(content)
         if suffix == ".docx":
+            with ZipFile(BytesIO(content)) as archive:
+                entries = archive.infolist()
+                if len(entries) > 2000 or sum(item.file_size for item in entries) > settings.max_docx_expanded_mb * 1024 * 1024:
+                    raise HTTPException(413, "The expanded DOCX exceeds the document limit")
+                if "word/document.xml" not in archive.namelist():
+                    raise HTTPException(422, "The file is not a valid DOCX document")
             document = Document(BytesIO(content))
-            text = "\n".join(paragraph.text for paragraph in document.paragraphs)
-            text = text.strip()
-            if not text:
-                raise HTTPException(status_code=422, detail="No readable text was found in the document")
-            return [ExtractedPage(page_number=1, text=text)], (
-                "DOCX pagination is not intrinsic; citations use logical page 1 for this document."
-            )
+            pages: list[ExtractedPage] = []
+            for block in document.iter_inner_content():
+                if isinstance(block, Paragraph):
+                    texts = [block.text]
+                elif isinstance(block, Table):
+                    texts = [" | ".join(cell.text for cell in row.cells) for row in block.rows]
+                else:
+                    continue
+                for text in texts:
+                    if text.strip():
+                        pages.append(ExtractedPage(len(pages) + 1, text.strip(), "paragraph"))
+            return _bounded(pages), "DOCX citations use extracted paragraph numbers (table rows count as paragraphs), not physical pages."
         if suffix == ".txt":
-            text = content.decode("utf-8-sig").strip()
-            if not text:
-                raise HTTPException(status_code=422, detail="No readable text was found in the document")
-            return [ExtractedPage(page_number=1, text=text)], (
-                "TXT pagination is not intrinsic; citations use logical page 1 for this document."
-            )
-    except (fitz.FileDataError, UnicodeDecodeError, ValueError) as exc:
-        raise HTTPException(status_code=422, detail="The file is corrupt or cannot be read") from exc
-
-    raise HTTPException(
-        status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-        detail="Only PDF, DOCX, and TXT files are supported",
-    )
+            pages = [ExtractedPage(index, line, "line") for index, line in enumerate(content.decode("utf-8-sig").splitlines(), 1) if line.strip()]
+            return _bounded(pages), "TXT citations use original line numbers, not physical pages."
+    except (BadZipFile, KeyError, XMLSyntaxError, UnicodeDecodeError, ValueError, RuntimeError, OSError) as exc:
+        raise HTTPException(422, "The file is corrupt or cannot be read") from exc
+    raise HTTPException(415, "Only PDF, DOCX, and TXT files are supported")
 
 
 def _extract_pdf(content: bytes) -> tuple[list[ExtractedPage], str | None]:
-    """Preserve native one-based PDF page numbers and flag image-only scans."""
     try:
-        document = fitz.open(stream=content, filetype="pdf")
-        pages = [
-            ExtractedPage(page_number=index + 1, text=page.get_text("text").strip())
-            for index, page in enumerate(document)
-        ]
+        with fitz.open(stream=content, filetype="pdf") as document:
+            if document.needs_pass:
+                raise HTTPException(422, "Password-protected PDFs are not supported")
+            if len(document) > settings.max_pdf_pages:
+                raise HTTPException(413, "The PDF exceeds the page limit")
+            pages = []
+            total = 0
+            for index, page in enumerate(document):
+                text = page.get_text("text").strip()
+                total += len(text)
+                if total > settings.max_extracted_chars:
+                    raise HTTPException(413, "The extracted document exceeds the text limit")
+                pages.append(ExtractedPage(index + 1, text))
     except (fitz.FileDataError, fitz.EmptyFileError, RuntimeError, ValueError) as exc:
-        raise HTTPException(status_code=422, detail="The PDF is corrupt or cannot be read") from exc
-    finally:
-        if "document" in locals():
-            document.close()
-
-    if not pages or not any(page.text for page in pages):
-        raise HTTPException(
-            status_code=422,
-            detail="This PDF contains no extractable text; it may be scanned. OCR is not supported.",
-        )
-    warning = "Some pages have no extractable text and may be scanned." if any(
-        not page.text for page in pages
-    ) else None
+        raise HTTPException(422, "The PDF is corrupt or cannot be read") from exc
+    if not any(page.text for page in pages):
+        raise HTTPException(422, "This PDF contains no extractable text; it may be scanned. OCR is not supported.")
+    warning = "Some pages have no extractable text and may be scanned." if any(not page.text for page in pages) else None
     return pages, warning
