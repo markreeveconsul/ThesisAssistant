@@ -15,13 +15,14 @@ export async function createProject(
     data: { user },
   } = await client.auth.getUser();
   if (!user) return { error: "Please sign in again." };
-  const { data: project, error } = await client
-    .from("projects")
-    .insert({ ...parsed.data, owner_id: user.id })
-    .select("id")
-    .single();
+  const { data: project, error } = await client.rpc("create_thesis", {
+    p_title: parsed.data.title,
+    p_problem: parsed.data.research_problem,
+    p_style: parsed.data.citation_style,
+    p_structure: parsed.data.structure,
+  });
   if (error)
     return { error: "Your project could not be created. Please try again." };
   revalidatePath("/");
-  redirect("/?project=" + project.id);
+  redirect("/project/" + project);
 }

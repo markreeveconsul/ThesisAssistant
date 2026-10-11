@@ -1,6 +1,14 @@
-import { describe, expect, it } from "vitest";
-import { readSupabaseConfig } from "../../lib/config";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { readSupabaseConfig, requireBrowserDraftMode } from "../../lib/config";
+afterEach(() => vi.unstubAllEnvs());
 describe("configuration boundary", () => {
+  it("requires explicit browser draft opt-in in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("ALLOW_BROWSER_DRAFTS", "false");
+    expect(requireBrowserDraftMode).toThrow(/Configure Supabase/);
+    vi.stubEnv("ALLOW_BROWSER_DRAFTS", "true");
+    expect(requireBrowserDraftMode).not.toThrow();
+  });
   it("only enables preview when both credentials are absent", () =>
     expect(readSupabaseConfig({})).toBeNull());
   it("fails closed for partial configuration", () => {

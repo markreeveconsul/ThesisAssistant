@@ -25,3 +25,14 @@ export function getSupabaseConfig() {
     key: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
   });
 }
+
+export function requireBrowserDraftMode() {
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.ALLOW_BROWSER_DRAFTS !== "true"
+  ) {
+    throw new Error(
+      "Configure Supabase before deploying. Browser drafts require explicit ALLOW_BROWSER_DRAFTS=true in a demonstration environment.",
+    );
+  }
+}

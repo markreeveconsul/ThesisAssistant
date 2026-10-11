@@ -40,6 +40,7 @@ beforeAll(async () => {
   for (const file of [
     "202610110001_foundation.sql",
     "202610110002_storage.sql",
+    "202610110003_editor.sql",
   ]) {
     await db.exec(
       readFileSync(resolve("../supabase/migrations", file), "utf8"),
@@ -265,9 +266,10 @@ describe("executed PostgreSQL ownership policies", () => {
         [],
       );
     });
-    await db.query("update public.projects set deleted_at=now() where id=$1", [
-      PA,
-    ]);
+    await db.query(
+      "update public.projects set deleted_at=now(),revision=revision+1 where id=$1",
+      [PA],
+    );
     await asUser(A, async () => {
       expect(
         (
@@ -283,5 +285,127 @@ describe("executed PostgreSQL ownership policies", () => {
         ),
       ).rejects.toThrow(/row-level security/i);
     });
+  });
+});
+
+describe("editor transactions and revision isolation", () => {
+  it("creates the project and five chapters together under the signed-in owner", async () => {
+    await asUser(B, async () => {
+      const result = await db.query<{ id: string }>(
+        "select public.create_thesis('Editor thesis','A research question','apa','five-chapter') as id",
+      );
+      const id = result.rows[0].id;
+      const chapters = await db.query<{ title: string }>(
+        "select title from public.sections where project_id=$1 order by position",
+        [id],
+      );
+      expect(chapters.rows.map((row) => row.title)).toEqual([
+        "Introduction",
+        "Review of related literature",
+        "Methodology",
+        "Results and discussion",
+        "Conclusions",
+      ]);
+      expect(
+        (
+          await db.query<{ owner_id: string }>(
+            "select owner_id from public.projects where id=$1",
+            [id],
+          )
+        ).rows[0].owner_id,
+      ).toBe(B);
+    });
+  });
+  it("rejects stale editor updates and preserves the acknowledged content", async () => {
+    await asUser(B, async () => {
+      const project = await db.query<{ id: string }>(
+        "select public.create_thesis('Revision test','','apa','five-chapter') as id",
+      );
+      const id = project.rows[0].id;
+      const section = await db.query<{ id: string }>(
+        "select id from public.sections where project_id=$1 order by position limit 1",
+        [id],
+      );
+      const chapter = section.rows[0].id;
+      await db.query(
+        "update public.sections set title='Saved title',revision=1 where id=$1 and revision=0",
+        [chapter],
+      );
+      expect(
+        (
+          await db.query(
+            "update public.sections set title='Old tab',revision=1 where id=$1 and revision=0 returning id",
+            [chapter],
+          )
+        ).rows,
+      ).toEqual([]);
+      await expect(
+        db.query(
+          "update public.sections set title='Bypass revision' where id=$1",
+          [chapter],
+        ),
+      ).rejects.toThrow(/Revision conflict/i);
+      expect(
+        (
+          await db.query<{ title: string }>(
+            "select title from public.sections where id=$1",
+            [chapter],
+          )
+        ).rows[0].title,
+      ).toBe("Saved title");
+    });
+  });
+  it("atomically reorders chapters and rolls back partial work on a conflict", async () => {
+    await asUser(B, async () => {
+      const result = await db.query<{ id: string }>(
+        "select public.create_thesis('Order test','','apa','five-chapter') as id",
+      );
+      const id = result.rows[0].id;
+      const original = (
+        await db.query<{ id: string; revision: number }>(
+          "select id,revision from public.sections where project_id=$1 order by position",
+          [id],
+        )
+      ).rows;
+      const reversed = [...original].reverse();
+      await db.query("select public.reorder_chapters($1,$2::jsonb)", [
+        id,
+        JSON.stringify(reversed),
+      ]);
+      const current = (
+        await db.query<{ id: string; revision: number }>(
+          "select id,revision from public.sections where project_id=$1 order by position",
+          [id],
+        )
+      ).rows;
+      expect(current.map((row) => row.id)).toEqual(
+        reversed.map((row) => row.id),
+      );
+      const stale = current.map((row, index) => ({
+        ...row,
+        revision: index === 2 ? 0 : row.revision,
+      }));
+      await expect(
+        db.query("select public.reorder_chapters($1,$2::jsonb)", [
+          id,
+          JSON.stringify(stale),
+        ]),
+      ).rejects.toThrow(/changed/i);
+      expect(
+        (
+          await db.query(
+            "select id,revision from public.sections where project_id=$1 order by position",
+            [id],
+          )
+        ).rows,
+      ).toEqual(current);
+    });
+    await asUser(
+      A,
+      async () =>
+        await expect(
+          db.query("select public.reorder_chapters($1,'[]'::jsonb)", [PB]),
+        ).rejects.toThrow(/unavailable/i),
+    );
   });
 });

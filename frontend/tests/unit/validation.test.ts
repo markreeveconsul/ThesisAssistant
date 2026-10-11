@@ -17,6 +17,8 @@ describe("input boundaries", () => {
     expect(projectSchema.parse({ title: "  Research  " })).toEqual({
       title: "Research",
       citation_style: "apa",
+      research_problem: "",
+      structure: "five-chapter",
     });
   });
   it("requires a valid email and long signup password", () => {

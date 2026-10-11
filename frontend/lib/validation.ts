@@ -6,6 +6,8 @@ export const projectSchema = z.object({
     .min(1, "Give your project a title.")
     .max(160, "Use 160 characters or fewer."),
   citation_style: z.enum(["apa", "mla", "ieee"]).default("apa"),
+  research_problem: z.string().trim().max(4000).default(""),
+  structure: z.enum(["five-chapter", "blank"]).default("five-chapter"),
 });
 export const credentialsSchema = z.object({
   email: z.string().trim().email("Enter a valid email address."),
