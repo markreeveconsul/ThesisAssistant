@@ -1,28 +1,33 @@
-# Library Folio
+# ThesisDesk: approved wireframe adaptation
 
-The manuscript is the center of ThesisDesk. Navigation and research assistance are supporting surfaces.
+## Direction
 
-## Visual system
+Approved by the user after reviewing the six-page thesis-workspace-wireframe.pdf. Keep the name ThesisDesk; use white surfaces and a restrained green accent. Source Serif 4 remains the manuscript face; IBM Plex Sans is the interface face. Dark mode is separately tuned. Tokens live in frontend/styles/tokens.css.
 
-Warm paper, charcoal text and a restrained oxblood accent. Source Serif 4 gives the writing surface an editorial rhythm; IBM Plex Sans keeps navigation concise. Fonts ship locally through Fontsource packages. Color, typography, spacing, radius and elevation tokens live in frontend/styles/tokens.css.
+## Screen structure
 
-Light and dark palettes are independently defined. AI proposals will have labels and diff semantics, not color alone. No chat bubbles, decorative gradients or sparkle language.
+1. Account access: existing email/password flows; Google login awaits provider setup.
+2. Dashboard: new thesis form with working title, research problem, citation style and five-chapter/blank structure; recent thesis cards without invented completion percentages.
+3. Workspace: chapters and sources share the left pane; editable document in the center; assistant on the right. Research problem expands above the editor.
+4. Source library: dedicated empty screen now; validated upload, real processing statuses and cited summaries arrive in Milestone 3 and later.
+5. Evidence viewer: planned document/PDF split with exact-page passage highlighting.
+6. Empty thesis: create an outline, inspect the source library, or start writing.
 
-## Foundation interactions
+## Decisions retained from review
 
-- Left: outline, sources and notes views; project creation and selection.
-- Center: read-only manuscript preview; focus mode; clear editor/export availability.
-- Right: collapsible assistant, adjustable with pointer or left/right keys on its separator.
-- Ctrl/Cmd+K: searchable workspace actions, Tab navigation, Enter selection, Escape dismissal.
-- Radix dialogs provide focus trapping, accessible names and focus restoration.
-- Theme preference persists locally; preview manuscript/project data does not.
-- Tablet uses a navigation overlay. Mobile defaults to reading with explicit panel switching.
-- Preview copy never claims a save, uploaded file, generated answer or live inference.
+- No arbitrary “Aligned 82%” or “AI-assisted 18%” badges.
+- Relevance review will be user-triggered, explained and advisory.
+- Never automatically delete a sentence or source.
+- Suggest a literature-review outline; do not silently ghostwrite a chapter.
+- OCR and sharing stay outside MVP scope.
+- Sources/AI screens do not fabricate results while services are pending.
 
-## States
+## Implemented editor interactions
 
-The foundation handles missing configuration, disabled auth, malformed callback, server load error, pending form submission, empty project, temporary preview project, offline banner and unavailable future actions. Later milestones replace availability messages with real editor/source/assistant flows.
+Tiptap toolbar, inline chapter-title editing, in-chapter heading navigation, tables, image URLs with required alt descriptions, footnotes, undo/redo, find/replace and slash tools. Chapter reorder supports drag and explicit up/down buttons. Focus mode and keyboard commands remain available.
 
-## Remaining design verification
+Save labels distinguish unsaved, saving, browser-saved, cloud-saved, failed and conflicted states. A conflict leaves text visible and offers a downloadable backup. Browser-only mode is explicitly labeled and never described as a private signed-in account.
 
-Automated browser tests and screenshot review cover desktop, mobile and dark mode. A full WCAG AA audit, editor keyboard behavior, assistive-technology testing and large-manuscript performance are required before MVP completion.
+## Verification
+
+Desktop/mobile screenshots and automated browser tests verify representative flows. Axe checks the dashboard/editor in both themes. Automated results do not replace manual screen-reader testing or final large-document performance checks.

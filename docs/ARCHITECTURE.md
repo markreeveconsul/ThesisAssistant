@@ -2,7 +2,7 @@
 
 ## Status
 
-This document separates implemented foundation from planned pipeline. Milestone 1 uses Next.js App Router, strict TypeScript, Tailwind CSS, Radix Dialog, self-hosted fonts and Supabase SSR. It makes no inference calls and has no ingestion or editor implementation yet. Account setup and Vercel deployment were explicitly deferred by the user.
+This document separates implemented foundation from planned pipeline. Milestones 1–2 use Next.js App Router, strict TypeScript, Tailwind CSS, Radix Dialog, self-hosted fonts and Supabase SSR. The Tiptap editor is implemented; ingestion and inference are not connected yet. Account setup and Vercel deployment were explicitly deferred by the user.
 
 The existing Git history was imported into the previously empty SisAssist workspace. The original thesis-assistant checkout remains unchanged. The legacy Python backend is reference material only.
 
@@ -12,12 +12,12 @@ Browser → Next.js server components/actions → Supabase using the user's auth
 
 Database RLS is the final boundary, including direct browser/API requests. A project ID is only a selector, never authorization. Auth redirects use an exact destination allowlist. Dynamic authenticated pages and middleware responses must not be publicly cached.
 
-When public Supabase variables are absent, the root renders a read-only preview and auth forms are disabled. This is not an authentication bypass: preview has no database client, no private data and no saved documents. Adding configuration switches the root to authenticated mode. Partially configured credentials should be treated as a configuration error (see config validation).
+When public Supabase variables are absent, development mode offers explicitly labeled browser drafts in localStorage; auth forms are disabled. Browser drafts have no account isolation or cloud backup. Production requires Supabase unless ALLOW_BROWSER_DRAFTS=true explicitly enables a demonstration. Adding configuration switches to authenticated storage; browser drafts are not automatically imported. Partially configured credentials should be treated as a configuration error (see config validation).
 
 ## Implemented data model
 
 - profiles: owner is auth.users.id; private preferences.
-- projects: owner, title, bibliography style, timestamps, deletion tombstone.
+- projects: owner, title, research problem, bibliography style, starting structure, revision, timestamps, deletion tombstone.
 - sections: project-owned editor JSON, title/order, parent, revision. Composite parent/project foreign key blocks cross-project hierarchy links.
 - sources: server-controlled upload reservation, immutable storage path, status, PDF metadata, deletion tombstone.
 - source_pages: project/source composite FK, physical page, extracted text and position mapping.
@@ -50,9 +50,11 @@ Document text and user draft context cannot issue instructions or tool actions. 
 
 Writing review path: explicitly selected draft text → feedback or proposed diff → user acceptance. Draft is context, not evidence. RRL review covers structure, synthesis and clarity; source checking requires uploaded papers. No unsupported claim of a field-wide research gap.
 
-## Planned editor and deletion
+## Implemented editor and planned deletion
 
-Tiptap core with custom citation, footnote, slash and suggestion extensions. Debounced autosave uses revision checks; show Saved only after acknowledgment. Proposals retain their original target revision and cannot silently overwrite newer edits. Canonical editor JSON feeds bibliography and DOCX/PDF serializers.
+Tiptap provides rich text, tables, HTTPS image links, footnotes, search/replace and a slash menu. Debounced autosave serializes writes and shows Saved only after acknowledgment. Compare-and-swap revisions prevent silent overwrites. PostgreSQL triggers enforce revision increments; SECURITY INVOKER functions create project/templates and reorder chapters atomically under RLS. Browser draft mutations use Web Locks and the same revision checks. Unsaved edits have same-tab sessionStorage recovery and downloadable JSON backups. Navigation flushes pending edits before switching chapters. Images and links are validated; editor JSON has size/depth/node limits.
+
+Citation and suggestion extensions, automatic bibliographies, backup import and DOCX/PDF serializers remain planned. Proposed writing changes will retain their target revision and require acceptance.
 
 Bibliographic metadata is user-confirmed; unknown authors/dates are never invented. Source deletion tombstones access, cancels jobs, removes stored objects/vectors and scrubs citation references in editor/chat/notes. Retain student prose with an explicit removed-citation marker.
 
@@ -60,4 +62,4 @@ Bibliographic metadata is user-confirmed; unknown authors/dates are never invent
 
 PGlite executes these exact SQL migrations against real PostgreSQL RLS, with test-only Supabase auth/storage stubs. This verifies policy predicates, grants and relational integrity. It does not verify GoTrue, email, signed URLs, Storage HTTP, Realtime or hosted pgvector behavior. Those require a connected Supabase environment.
 
-Browser tests run the explicitly labeled preview. Hosted auth acceptance and upload-to-citation E2E remain release gates for later milestones.
+Browser tests exercise real browser drafts and Tiptap: reload persistence, chapter switching/reordering, two-tab conflicts, research problem editing, tables/footnotes, mobile layout and accessibility. Hosted auth acceptance and upload-to-citation E2E remain release gates for later milestones.

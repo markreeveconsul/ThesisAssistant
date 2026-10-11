@@ -1,18 +1,22 @@
 # ThesisDesk
 
-An editor-first thesis workspace being rebuilt on Next.js, Supabase and hosted open-weight inference. Library Folio is the selected design direction.
+A thesis-writing workspace built with Next.js, Tiptap and Supabase, with hosted open-weight research assistance planned next. The current design follows the approved six-screen wireframe: white surfaces, green accents, a serif manuscript, and chapters/sources beside the editor.
 
-## Current milestone
+## What works now
 
-Milestone 1 foundation is implemented locally: responsive three-pane shell, light/dark themes, focus mode, keyboard command palette, assistant resizing, Supabase SSR auth routes, project creation/loading, database migrations, ownership policies, private storage policies and tests.
+- Thesis dashboard, working title, editable research problem, APA/MLA/IEEE preference.
+- Five-chapter template or blank outline.
+- Real Tiptap editing: headings, bold/italic/underline, lists, block quotes, tables, HTTPS image links with alt text, footnotes, undo/redo, find/replace, word count and a small slash-tool menu.
+- Chapter creation, renaming, switching, drag ordering and keyboard-accessible reorder controls.
+- Debounced serialized autosave with visible states, revision conflicts, tab recovery and JSON chapter backup downloads.
+- Focus mode, collapsible/resizable assistant, command palette, mobile reading/editing, light/dark themes.
+- Supabase auth routes, user-isolated schema and storage policies. Hosted auth and cloud saves still require account setup.
 
-**Without Supabase configuration the app is a clearly labeled, read-only layout preview.** Sample paragraphs are illustrative; they are not AI answers. Preview projects are temporary and reset on reload. Document editing, uploads, ingestion, AI, citations, notes and export are later milestones. No model requests are made yet.
+**Sources and the assistant are not connected yet.** Their UI states say so. Uploading, PDF evidence viewing, retrieval, AI answers, citations, notes and DOCX/PDF export remain later milestones.
 
-Hosted Supabase authentication, email, Storage API behavior and Vercel deployment are pending account setup. A passing local policy test is not a hosted acceptance test.
+## Run locally
 
-## Run the current app
-
-Requires Node.js 22 LTS and npm. No Python, Ollama or Docker is required for this preview.
+Requires Node.js 22+ and npm. No Python, Ollama or Docker is required for the UI.
 
 ~~~powershell
 cd frontend
@@ -21,48 +25,49 @@ Copy-Item .env.example .env.local
 npm run dev -- --port 3001
 ~~~
 
-Open http://localhost:3001. Keep the Supabase variables empty to explore the preview. The new workspace is separate from the original app at C:\Users\Admin\thesis-assistant.
+Open http://localhost:3001. With both Supabase variables empty, development mode uses **browser drafts**. Create a thesis and write immediately. Drafts persist in that browser's localStorage; they are not a user account, cloud backup or cross-device sync. Clearing browser data removes them. Download important chapter backups. Safe local writes require Web Locks (supported in current mainstream browsers).
 
-## Connect Supabase later
+Unsaved text is also kept in sessionStorage for same-tab recovery. The editor offers restoration after reload; if the saved revision changed, download the recovered text for comparison instead of silently replacing newer work. Backups are JSON data, not finished DOCX/PDF exports; a backup-import interface is not implemented yet.
 
-1. Create a Supabase project. Keep its service-role key out of browser variables.
-2. Install/sign into the Supabase CLI. From the repository root, link the project and apply the migrations:
+A production build without Supabase fails closed by default. Set ALLOW_BROWSER_DRAFTS=true only for an intentional demonstration environment, never as an alternative to authenticated production storage.
+
+## Connect Supabase
+
+1. Create a new Supabase project and install/sign into its CLI.
+2. From the repository root:
    ~~~sh
    supabase link --project-ref YOUR_PROJECT_REF
    supabase db push
    ~~~
-   Use a new project; this migration does not import the legacy SQLite data.
-3. In frontend/.env.local set NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY and NEXT_PUBLIC_SITE_URL.
-4. Configure Supabase Auth's site URL and allowed redirect URLs for the exact deployment origin, including /auth/callback and recovery callbacks. Enable email confirmation and a minimum password length of 12. Configure production SMTP before public signup.
-5. Restart Next.js. The root now requires a real verified session. Signup, confirmation, login, recovery and project creation must then be tested against the hosted project.
-6. New projects are saved in Postgres. The manuscript area remains read-only until Milestone 2.
+   Apply all three migrations, including the editor revision functions. Existing development SQLite data is not migrated.
+3. Set NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY and NEXT_PUBLIC_SITE_URL in frontend/.env.local.
+4. Configure exact Auth redirect URLs for /auth/callback (including password-recovery redirects), enable email confirmation and a minimum password length of 12, and set up production SMTP.
+5. Restart Next.js. The dashboard now requires a verified session and uses Postgres; browser drafts are not automatically imported into a cloud account.
+6. Verify signup, confirmation, login, recovery, two-user isolation and real cloud autosave against that hosted project before release.
 
-Migrations create seven application tables with RLS: profiles, projects, sections, sources, source_pages, notes and jobs. Browser roles cannot mutate ingestion state or directly delete projects/sources. Assets and exports remain deny-by-default until their lifecycles are implemented.
+User-facing routes never use a service-role key. RLS is the final authorization boundary. Source uploads and direct source/project deletion remain denied until their validated processing/cleanup endpoints exist.
 
-Do not disable RLS to fix an access error. Policies are tested and their failure is meaningful.
+## Deploy to Vercel
 
-## Deploy to Vercel later
+Choose frontend as the root directory, Next.js framework, npm ci and npm run build. Configure the public Supabase variables and deployed site origin in the appropriate environment. Use a separate Supabase project for destructive preview testing.
 
-Import this repository and choose **frontend** as the root directory and Next.js as the framework. Use npm ci and npm run build. Set the same public Supabase variables and the deployed site URL in the appropriate Preview/Production environments. No local backend is needed.
+No Vercel or hosted Supabase deployment has been performed; the user deferred account setup. Local database-policy tests do not establish that hosted auth/email/storage works.
 
-Preview deployments should use a separate Supabase project from production when testing destructive behavior. Configure exact allowed auth redirects. No Vercel deployment was created during this milestone.
+## Environment
 
-## Environment variables
+See frontend/.env.example (copy to frontend/.env.local; Next.js does not read the repository-root .env).
 
-Next.js reads frontend/.env.local, not the repository-root .env. See frontend/.env.example.
-
-| Variable | Purpose |
+| Variables | Purpose |
 | --- | --- |
 | NEXT_PUBLIC_SITE_URL | Canonical site origin for auth emails |
-| NEXT_PUBLIC_SUPABASE_URL | Supabase project URL; blank enables preview |
-| NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY | Public, RLS-limited browser key |
-| SUPABASE_SERVICE_ROLE_KEY | Reserved for future privileged workers; server-only |
-| AI_CHAT_BASE_URL / AI_CHAT_API_KEY / AI_CHAT_MODEL | Future open-weight chat provider |
-| AI_EMBED_BASE_URL / AI_EMBED_API_KEY / AI_EMBED_MODEL | Future open-weight embedding provider |
-| AI_EMBED_DIMENSIONS | Planned vector dimension, default 1024 |
-| MAX_UPLOAD_MB / MAX_PDF_PAGES | Planned ingestion bounds, 25 MB / 300 pages |
+| NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY | Hosted database/auth configuration |
+| ALLOW_BROWSER_DRAFTS | Explicit opt-in for unauthenticated browser drafts in a production demonstration build; false by default |
+| SUPABASE_SERVICE_ROLE_KEY | Future worker credential, server-only; unused in current user routes |
+| AI_CHAT_BASE_URL / AI_CHAT_API_KEY / AI_CHAT_MODEL | Future open-weight chat configuration |
+| AI_EMBED_BASE_URL / AI_EMBED_API_KEY / AI_EMBED_MODEL / AI_EMBED_DIMENSIONS | Future versioned embedding configuration |
+| MAX_UPLOAD_MB / MAX_PDF_PAGES | Planned ingestion caps: 25 MB / 300 pages |
 
-The AI and worker variables are documented configuration for later milestones and are not consumed yet. There is no proprietary-model fallback.
+AI variables are reserved for later milestones; no model requests happen yet.
 
 ## Tests
 
@@ -75,29 +80,31 @@ npm run build
 npm run test:e2e
 ~~~
 
-- Vitest runs input validation and the actual SQL migrations in PGlite (PostgreSQL in WASM). Auth identities, service roles, and the storage schema are test substitutes; PostgreSQL grants and RLS enforcement execute for real.
-- Playwright launches an isolated Next.js preview on port 3012 with empty Supabase configuration. Microsoft Edge is the Windows default. For another environment install Chromium with npx playwright install chromium and set PLAYWRIGHT_CHANNEL=chromium.
-- Tests cover preview honesty, navigation, theme persistence, focus, keyboard resizing, command search, mobile layout, offline messaging and invalid auth callbacks.
-- A hosted two-user auth/storage acceptance test and the full upload → ask → cited answer → insertion test will be added/run as the corresponding services become available.
+Run build and browser tests sequentially because Next.js updates shared generated type files.
 
-## Layout
+Vitest executes the actual migrations in PGlite and tests authentication-role isolation, column grants, storage policies, atomic project/template creation, revision conflicts and all-or-nothing chapter reordering. Supabase-managed auth/storage plumbing is substituted; its HTTP APIs are not exercised.
 
-- frontend/: active Next.js app and tests.
-- supabase/migrations/: schema and security policies.
-- docs/ARCHITECTURE.md: architecture, trust boundaries, planned pipeline.
-- docs/DESIGN.md: design rationale and interaction rules.
-- backend/: legacy FastAPI app preserved for reference; unused by ThesisDesk.
-- frontend/lib/api.ts and components/SourcePreview.tsx: legacy modules, unused by the new routes.
+Other unit tests cover document validation, word count, search across formatting boundaries and serialized autosave, including edits made during in-flight saves and failures.
+
+Playwright uses an isolated development server on port 3012, real browser storage and a real Tiptap editor. It tests persistence, multiple-tab conflicts, chapter switching/reordering, research-problem changes, formatting, tables/footnotes, mobile layouts and axe accessibility checks. Windows defaults to Edge; elsewhere install Chromium and set PLAYWRIGHT_CHANNEL=chromium.
+
+## Repository
+
+- frontend/: active application and tests.
+- supabase/migrations/: SQL schema, grants, RLS and editor functions.
+- docs/ARCHITECTURE.md and docs/DESIGN.md: decisions and implementation boundaries.
+- backend/: preserved legacy FastAPI code, unused by the new application.
+
+The original C:\Users\Admin\thesis-assistant checkout is unchanged. Work is in the SisAssist repository on codex/thesisdesk.
 
 ## Known limitations and next steps
 
-1. Connect hosted Supabase and Vercel; verify live signup, recovery, private files and deployment.
-2. Milestone 2: real Tiptap editor, chapter management, outline, revision-aware autosave and word count.
-3. Milestone 3: direct upload, durable ingestion, pgvector and PDF evidence viewer.
-4. Milestone 4: grounded streaming, citations, history and persistent rate limits.
-5. Milestone 5: accepted insertion, bibliography and selected-text/RRL review.
-6. Milestone 6: exports, notes, cleanup workers, accessibility and performance.
+- Live Supabase/Vercel verification remains pending.
+- No private image upload yet; explicit HTTPS image links load from external hosts.
+- Footnotes currently use linked dagger markers and an end-of-chapter list. Final export/pagination is not implemented.
+- Browser backups are per chapter; bulk import/export and cloud draft migration are not implemented.
+- Large-document performance and full assistive-technology review remain final-MVP checks.
+- Next: direct PDF upload, resumable ingestion, source processing statuses and evidence viewer.
+- Then: grounded assistant, selected-text/RRL review, accepted suggestions, bibliography, notes and exports.
 
-No collaboration, version history, paper discovery, plagiarism checking or OCR is included. Word-like editing does not promise Microsoft Word-identical pagination.
-
-The original local app's documentation and working baseline remain in Git history before branch codex/thesisdesk.
+No OCR, collaboration, sharing, paper discovery, plagiarism checks or unverifiable alignment/AI-detection percentages are included.
