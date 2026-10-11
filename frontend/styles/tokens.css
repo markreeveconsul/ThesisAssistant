@@ -1,16 +1,16 @@
 :root {
   color-scheme: light;
-  --canvas: #f3f1eb;
-  --surface: #f9f8f4;
-  --paper: #fffefa;
-  --hover: #eeece5;
+  --canvas: #f5f7f8;
+  --surface: #ffffff;
+  --paper: #ffffff;
+  --hover: #edf3f1;
   --text: #292d2a;
   --muted: #666b64;
   --faint: #676e64;
   --line: #dedfd5;
-  --accent: #78383c;
-  --accent-hover: #642b30;
-  --accent-soft: #efe3e1;
+  --accent: #087b5c;
+  --accent-hover: #056147;
+  --accent-soft: #e6f4ef;
   --on-accent: #fffaf6;
   --success: #4d6954;
   --note: #f4efe2;
@@ -41,9 +41,9 @@
   --muted: #b4bcaf;
   --faint: #a5aea0;
   --line: #3c453e;
-  --accent: #e0aaab;
-  --accent-hover: #f2c6c5;
-  --accent-soft: #403033;
+  --accent: #83d6b7;
+  --accent-hover: #a2e8cc;
+  --accent-soft: #1d4035;
   --on-accent: #272121;
   --success: #a5c0a3;
   --note: #33332a;

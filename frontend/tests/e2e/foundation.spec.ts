@@ -1,52 +1,182 @@
 import { test, expect } from "@playwright/test";
+import { createThesis, saved } from "./helpers";
 
-test("workspace is an honest preview with working navigation", async ({
+test("dashboard creates a five-chapter thesis and persists writing across reloads", async ({
   page,
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/");
+  await createThesis(page);
   await expect(
-    page.getByRole("heading", { name: "Literature review", exact: true }),
+    page.getByRole("button", {
+      name: "2 Review of related literature",
+      exact: true,
+    }),
   ).toBeVisible();
+  const content = page.getByRole("textbox", {
+    name: "Chapter content",
+    exact: true,
+  });
+  await content.fill("Feedback helps students reflect on their learning.");
+  await saved(page);
+  await page.reload();
+  await expect(content).toContainText("Feedback helps students reflect");
+  await expect(page.getByText("7 words · Browser draft")).toBeVisible();
+  await page.getByRole("link", { name: "ThesisDesk", exact: true }).click();
   await expect(
-    page.getByText("Preview only · changes are not saved"),
+    page.getByRole("heading", { name: "Your theses", exact: true }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("textbox", { name: "Ask your sources" }),
-  ).toBeDisabled();
-  await page
-    .getByRole("button", { name: "Sources", exact: false })
-    .filter({ hasText: /^Sources/ })
-    .click();
-  await expect(page.getByText("Your evidence belongs here.")).toBeVisible();
-  await page.getByRole("button", { name: "Notes", exact: true }).click();
-  await expect(page.getByText("Keep useful ideas close.")).toBeVisible();
-  await page
-    .getByRole("button", { name: "Outline", exact: true })
-    .first()
-    .click();
-  await page.getByRole("button", { name: "01 Introduction" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Introduction", exact: true }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "02 Literature review" }).click();
+  await page.getByRole("link", { name: /Learning and feedback/ }).click();
+  await expect(content).toContainText("Feedback helps students reflect");
+  expect(errors).toEqual([]);
   await page.screenshot({
-    path: "test-results/workspace-light.png",
+    path: "test-results/editor-desktop.png",
     fullPage: true,
   });
-  expect(errors).toEqual([]);
 });
 
-test("focus mode, keyboard resize, theme and command search work", async ({
+test("formatting, find/replace, tables and footnotes are real editor operations", async ({
   page,
 }) => {
-  await page.goto("/");
-  const handle = page.getByRole("separator", { name: "Resize assistant" });
-  await handle.focus();
-  await page.keyboard.press("ArrowLeft");
-  await expect(handle).toHaveAttribute("aria-valuenow", "346");
-  await page.getByRole("button", { name: "Focus", exact: true }).click();
+  await createThesis(page);
+  const content = page.getByRole("textbox", {
+    name: "Chapter content",
+    exact: true,
+  });
+  await content.fill("Students learn. Students compare.");
+  await page
+    .getByRole("button", { name: "Find and replace", exact: true })
+    .click();
+  await page.getByLabel("Find", { exact: true }).fill("Students");
+  await page.getByLabel("Replace with", { exact: true }).fill("Researchers");
+  await page.getByRole("button", { name: "Replace all", exact: true }).click();
+  await expect(content).toContainText(
+    "Researchers learn. Researchers compare.",
+  );
+  await page.getByRole("button", { name: "Close editor tool" }).click();
+  await content.click();
+  await page.keyboard.press("Control+End");
+  await page
+    .getByRole("button", { name: "Insert footnote", exact: true })
+    .click();
+  await page
+    .getByLabel("Footnote text", { exact: true })
+    .fill("Define engagement consistently.");
+  await page
+    .locator(".inline-editor-form")
+    .getByRole("button", { name: "Insert footnote", exact: true })
+    .click();
+  await expect(page.getByRole("list", { name: "Footnotes" })).toContainText(
+    "Define engagement consistently.",
+  );
+  await page.getByRole("button", { name: "Insert table", exact: true }).click();
+  await expect(content.locator("table")).toBeVisible();
+  await saved(page);
+  await page.reload();
+  await expect(content.locator("table")).toBeVisible();
+  await expect(page.getByRole("list", { name: "Footnotes" })).toContainText(
+    "Define engagement consistently.",
+  );
+});
+
+test("chapter switching flushes pending edits and chapter order survives reload", async ({
+  page,
+}) => {
+  await createThesis(page);
+  const content = page.getByRole("textbox", {
+    name: "Chapter content",
+    exact: true,
+  });
+  await content.fill("A draft typed immediately before changing chapters.");
+  await page
+    .getByRole("button", {
+      name: "2 Review of related literature",
+      exact: true,
+    })
+    .click();
+  await expect(
+    page.getByRole("textbox", { name: "Chapter title", exact: true }),
+  ).toHaveValue("Review of related literature");
+  await page
+    .getByRole("button", { name: "1 Introduction", exact: true })
+    .click();
+  await expect(content).toContainText("A draft typed immediately");
+  await page
+    .getByRole("button", { name: "Move Introduction down", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "2 Introduction", exact: true }),
+  ).toBeVisible();
+  await expect(content).toContainText("A draft typed immediately");
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "2 Introduction", exact: true }),
+  ).toBeVisible();
+});
+
+test("stale tabs cannot overwrite newer chapter content", async ({
+  page,
+  context,
+}) => {
+  await createThesis(page);
+  const other = await context.newPage();
+  await other.goto(page.url());
+  const editor = page.getByRole("textbox", {
+    name: "Chapter content",
+    exact: true,
+  });
+  const otherEditor = other.getByRole("textbox", {
+    name: "Chapter content",
+    exact: true,
+  });
+  await expect(otherEditor).toBeVisible();
+  await editor.fill("Version saved by the first tab.");
+  await saved(page);
+  await otherEditor.fill("Conflicting words from an older tab.");
+  await expect(
+    other.getByRole("alert").filter({ hasText: "This chapter changed" }),
+  ).toContainText("changed in another tab");
+  await expect(otherEditor).toContainText("Conflicting words");
+  await page.reload();
+  await expect(editor).toContainText("Version saved by the first tab.");
+  await other.close({ runBeforeUnload: false });
+});
+
+test("research problem changes persist and blank projects have usable starting choices", async ({
+  page,
+}) => {
+  await createThesis(page, "A new question", "blank");
+  await expect(
+    page.getByRole("heading", {
+      name: "Start your first section",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /Write from scratch/ }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Chapter content", exact: true }),
+  ).toBeVisible();
+  await page.locator(".research-problem summary").click();
+  await page
+    .getByRole("textbox", { name: "Research problem", exact: true })
+    .fill("How do students act on feedback?");
+  await page
+    .getByRole("button", { name: "Save research problem", exact: true })
+    .click();
+  await expect(page.locator(".research-problem summary")).toContainText(
+    "How do students act on feedback?",
+  );
+  await page.reload();
+  await expect(page.locator(".research-problem summary")).toContainText(
+    "How do students act on feedback?",
+  );
+});
+
+test("theme, command palette, focus and source navigation work", async ({
+  page,
+}) => {
+  await createThesis(page);
+  await page.getByRole("button", { name: "Focus mode", exact: true }).click();
   await expect(
     page.getByRole("complementary", {
       name: "Research assistant",
@@ -54,88 +184,43 @@ test("focus mode, keyboard resize, theme and command search work", async ({
     }),
   ).toHaveCount(0);
   await page.keyboard.press("Escape");
-  await expect(
-    page.getByRole("complementary", {
-      name: "Research assistant",
-      exact: true,
-    }),
-  ).toBeVisible();
+  const resize = page.getByRole("separator", { name: "Resize assistant" });
+  await resize.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(resize).toHaveAttribute("aria-valuenow", "350");
+  await page
+    .getByRole("button", { name: "Use dark theme", exact: true })
+    .click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.keyboard.press("Control+k");
-  await expect(
-    page.getByRole("dialog", { name: "Command palette" }),
-  ).toBeVisible();
-  await page.getByRole("textbox", { name: "Search commands" }).fill("dark");
-  await page.getByRole("button", { name: "Use dark theme" }).click();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await page.reload();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.getByRole("textbox", { name: "Search commands" }).fill("sources");
+  await page.getByRole("button", { name: "Show sources", exact: true }).click();
+  await expect(page.getByRole("heading", { name: /Sources/ })).toBeVisible();
+  await page.getByRole("button", { name: "Upload PDF", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("PDF upload arrives");
+  await page
+    .getByRole("button", { name: "Back to editor", exact: true })
+    .click();
   await page.screenshot({
-    path: "test-results/workspace-dark.png",
+    path: "test-results/editor-dark.png",
     fullPage: true,
   });
 });
 
-test("creating a preview project never claims cloud persistence", async ({
-  page,
-}) => {
-  await page.goto("/");
-  await page.getByRole("button", { name: "New project", exact: true }).click();
-  await page
-    .getByRole("textbox", { name: "Project title" })
-    .fill("Urban learning");
-  await page
-    .getByRole("button", { name: "Create preview project", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "Urban learning", exact: true }),
-  ).toBeVisible();
-  await expect(page.getByRole("status")).toContainText(
-    "no data has been saved",
-  );
-  await page.reload();
-  await expect(
-    page.getByRole("heading", { name: "Literature review", exact: true }),
-  ).toBeVisible();
-});
-
-test("account setup and invalid recovery links are explicit", async ({
-  page,
-}) => {
-  await page.goto("/auth");
-  await expect(
-    page.getByRole("button", { name: "Sign in", exact: true }),
-  ).toBeDisabled();
-  await expect(
-    page.getByText("Account setup is pending.", { exact: false }),
-  ).toBeVisible();
-  await page.screenshot({ path: "test-results/auth.png", fullPage: true });
-  await page.goto("/auth/callback?code=invalid&next=https://evil.example");
-  await expect(page).toHaveURL(/\/auth\?error=link$/);
-  await expect(
-    page.getByRole("alert").filter({ hasText: "This sign-in link" }),
-  ).toContainText("invalid or expired");
-});
-
-test("mobile reading and panel switching fit the viewport", async ({
+test("mobile editor and panel navigation fit the viewport", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
+  await createThesis(page);
+  const mobile = page.getByRole("navigation", { name: "Mobile workspace" });
   await expect(
-    page.getByRole("heading", { name: "Literature review", exact: true }),
+    page.getByRole("textbox", { name: "Chapter content", exact: true }),
   ).toBeVisible();
   expect(
     await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth,
+      () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
-  await expect(
-    page.getByRole("complementary", {
-      name: "Research assistant",
-      exact: true,
-    }),
-  ).toHaveCount(0);
-  const mobile = page.getByRole("navigation", { name: "Mobile workspace" });
   await mobile.getByRole("button", { name: "Assistant", exact: true }).click();
   await expect(
     page.getByRole("complementary", {
@@ -145,34 +230,68 @@ test("mobile reading and panel switching fit the viewport", async ({
   ).toBeVisible();
   await mobile.getByRole("button", { name: "Document", exact: true }).click();
   await page.screenshot({
-    path: "test-results/workspace-mobile.png",
+    path: "test-results/editor-mobile.png",
     fullPage: true,
   });
-  await mobile.getByRole("button", { name: "Outline", exact: true }).click();
-  await expect(
-    page.getByRole("complementary", { name: "Project navigation" }),
-  ).toBeVisible();
 });
 
-test("unavailable functionality and offline state have actionable feedback", async ({
+test("account setup remains explicit and invalid recovery links stay on site", async ({
   page,
-  context,
 }) => {
-  await page.goto("/");
+  await page.goto("/auth");
+  await expect(
+    page.getByRole("button", { name: "Sign in", exact: true }),
+  ).toBeDisabled();
+  await page.goto("/auth/callback?code=invalid&next=https://evil.example");
+  await expect(page).toHaveURL(/\/auth\?error=link$/);
+  await expect(
+    page.getByRole("alert").filter({ hasText: "This sign-in link" }),
+  ).toContainText("invalid or expired");
+});
+
+test("restored unsaved drafts survive a failed save and another reload", async ({
+  page,
+}) => {
+  await createThesis(page);
+  await page.evaluate(() => {
+    const data = JSON.parse(localStorage.getItem("thesisdesk-drafts-v1")!);
+    const section = data.sections[0];
+    section.title = "Recovered introduction";
+    section.content = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "Keep this recovered draft." }],
+        },
+      ],
+    };
+    sessionStorage.setItem(
+      `thesisdesk-recovery:${section.project_id}:${section.id}`,
+      JSON.stringify(section),
+    );
+  });
+  await page.addInitScript(() => {
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === "thesisdesk-drafts-v1")
+        throw new DOMException("Storage full", "QuotaExceededError");
+      original.call(this, key, value);
+    };
+  });
+  await page.reload();
   await page
-    .getByRole("button", {
-      name: "Review the structure of my RRL",
-      exact: false,
-    })
+    .getByRole("button", { name: "Restore draft", exact: true })
     .click();
-  await expect(page.getByRole("status")).toContainText(
-    "RRL review is not connected yet",
-  );
-  await page.getByRole("button", { name: "Dismiss notification" }).click();
-  await context.setOffline(true);
-  await expect(page.getByRole("status")).toContainText("You’re offline");
-  await context.setOffline(false);
-  await expect(page.getByText("You’re offline.", { exact: false })).toHaveCount(
-    0,
-  );
+  await expect(
+    page.getByRole("textbox", { name: "Chapter content", exact: true }),
+  ).toContainText("Keep this recovered draft.");
+  await expect(
+    page.getByRole("button", { name: "Retry save", exact: true }),
+  ).toBeVisible();
+  page.on("dialog", (dialog) => dialog.accept());
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Restore draft", exact: true }),
+  ).toBeVisible();
 });
