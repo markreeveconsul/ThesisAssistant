@@ -1,16 +1,16 @@
 :root {
   color-scheme: light;
-  --canvas: #f5f7f8;
+  --canvas: #f6f7f8;
   --surface: #ffffff;
   --paper: #ffffff;
   --hover: #edf3f1;
-  --text: #292d2a;
-  --muted: #666b64;
+  --text: #0e1512;
+  --muted: #5b6670;
   --faint: #676e64;
-  --line: #dedfd5;
-  --accent: #087b5c;
-  --accent-hover: #056147;
-  --accent-soft: #e6f4ef;
+  --line: #e6e9ec;
+  --accent: #0a7f5a;
+  --accent-hover: #06583f;
+  --accent-soft: #e6f5ef;
   --on-accent: #fffaf6;
   --success: #4d6954;
   --note: #f4efe2;
@@ -19,15 +19,15 @@
   --shadow: 0 4px 28px #272c2210;
   --overlay: #171b2459;
   --serif: "Source Serif 4", Georgia, serif;
-  --sans: "IBM Plex Sans", system-ui, sans-serif;
-  --radius: 5px;
+  --sans: "Manrope", system-ui, sans-serif;
+  --radius: 12px;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
   --space-6: 24px;
   --space-8: 32px;
-  --ui-size: 13px;
+  --ui-size: 14px;
   --document-size: 17px;
   --document-leading: 1.85;
 }

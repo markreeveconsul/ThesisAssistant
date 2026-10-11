@@ -1,7 +1,9 @@
 "use client";
+import { Otto } from "./Otto";
 import Link from "next/link";
+import { Brand } from "./Brand";
 import { useActionState, useState } from "react";
-import { ArrowRight, BookOpen } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { authenticate } from "@/app/auth/actions";
 
 export function AuthForm({
@@ -16,7 +18,7 @@ export function AuthForm({
   const [mode, setMode] = useState(recovery ? "update" : "login");
   const [state, action, pending] = useActionState(authenticate, {});
   const title = {
-    login: "A place for your thinking.",
+    login: "Welcome back",
     signup: "Begin your next chapter.",
     reset: "Find your way back.",
     update: "Choose a new password.",
@@ -24,27 +26,21 @@ export function AuthForm({
   return (
     <main className="auth-page">
       <Link href="/" className="wordmark">
-        <BookOpen size={24} /> ThesisDesk<span className="brand-dot">.</span>
+        <Brand />
       </Link>
       <div className="auth-layout">
         <section className="auth-intro">
           <span className="eyebrow">YOUR RESEARCH. YOUR WORDS.</span>
-          <h1>
-            Make room
-            <br />
-            for the work
-            <br />
-            <em>that matters.</em>
-          </h1>
+          <h1>Your thesis, backed by every source you read.</h1>
           <p>
             A thoughtful space to write, connect your sources, and develop your
             thesis—one paragraph at a time.
           </p>
-          <span className="folio-rule" />
-          <small>LIBRARY FOLIO / A WRITING WORKSPACE</small>
+          <Otto animate />
+          <small>YOUR RESEARCH COMPANION</small>
         </section>
         <section className="auth-card">
-          <span className="eyebrow">THESISDESK</span>
+          <span className="eyebrow">THESA</span>
           <h2>{title}</h2>
           <p>
             {mode === "login"
@@ -55,8 +51,8 @@ export function AuthForm({
           </p>
           {!configured && (
             <p className="notice">
-              Account setup is pending. You can explore the workspace preview
-              without an account.
+              Account setup is pending. You can write browser drafts without an
+              account.
             </p>
           )}
           {linkError && (
@@ -139,13 +135,13 @@ export function AuthForm({
           )}
           {!configured && (
             <Link className="preview-link" href="/">
-              Explore the workspace preview <ArrowRight size={15} />
+              Open browser drafts <ArrowRight size={15} />
             </Link>
           )}
         </section>
       </div>
       <footer className="auth-footer">
-        Your ideas stay yours. Your sources stay private.
+        Your ideas stay yours. Browser drafts stay on this device.
       </footer>
     </main>
   );

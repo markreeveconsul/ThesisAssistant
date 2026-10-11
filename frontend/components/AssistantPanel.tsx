@@ -1,9 +1,9 @@
 "use client";
+import { Otto } from "./Otto";
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   ArrowRight,
   ArrowUp,
-  BookOpen,
   FileText,
   MessageSquare,
   PanelRightClose,
@@ -97,9 +97,7 @@ export function AssistantPanel({
         </select>
       </div>
       <div className="assistant-body">
-        <span className="assistant-symbol">
-          <BookOpen size={28} strokeWidth={1.1} />
-        </span>
+        <Otto pose="reading" />
         <span className="eyebrow">THINK WITH YOUR SOURCES</span>
         <h2>
           A second perspective.

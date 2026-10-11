@@ -1,6 +1,6 @@
-# ThesisDesk
+# Thesa
 
-A thesis-writing workspace built with Next.js, Tiptap and Supabase, with hosted open-weight research assistance planned next. The current design follows the approved six-screen wireframe: white surfaces, green accents, a serif manuscript, and chapters/sources beside the editor.
+A thesis-writing workspace built with Next.js, Tiptap and Supabase, with hosted open-weight research assistance planned next. The current design adapts the approved Thesa UI source: emerald accents, rounded controls, Manrope interface text, a serif manuscript, Otto illustrations, and chapters/sources beside the editor.
 
 ## What works now
 

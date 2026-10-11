@@ -1,5 +1,6 @@
 "use client";
-import { ArrowLeft, BookOpen, FileText, Upload } from "lucide-react";
+import { Otto } from "./Otto";
+import { ArrowLeft, FileText, Upload } from "lucide-react";
 export function SourceLibrary({
   onBack,
   onNotice,
@@ -27,7 +28,7 @@ export function SourceLibrary({
       </div>
       <div className="library-grid">
         <section className="library-empty">
-          <BookOpen size={38} strokeWidth={1} />
+          <Otto pose="searching" />
           <h2>Build a library for your question.</h2>
           <p>
             Source upload and processing will connect in Milestone 3. Your
