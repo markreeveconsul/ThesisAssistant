@@ -1,70 +1,63 @@
-# Architecture
+# ThesisDesk architecture
+
+## Status
+
+This document separates implemented foundation from planned pipeline. Milestone 1 uses Next.js App Router, strict TypeScript, Tailwind CSS, Radix Dialog, self-hosted fonts and Supabase SSR. It makes no inference calls and has no ingestion or editor implementation yet. Account setup and Vercel deployment were explicitly deferred by the user.
+
+The existing Git history was imported into the previously empty SisAssist workspace. The original thesis-assistant checkout remains unchanged. The legacy Python backend is reference material only.
 
 ## Runtime and trust boundaries
 
-The Next.js frontend calls a FastAPI API with an expiring bearer token. Argon2id hashes passwords. SQLAlchemy/SQLite stores identity and ownership; persistent Chroma stores only chunk text, embeddings, and retrieval metadata. Ollama supplies local chat and embedding inference. There are no proprietary AI SDKs or endpoints.
+Browser → Next.js server components/actions → Supabase using the user's authenticated cookie session. getUser verifies the session with Supabase; middleware refreshes cookies. No service-role key is used in user-facing foundation routes. Server actions validate input with Zod and derive owner IDs from the authenticated user.
 
-The API binds to loopback by default. Run one worker: project-level mutation locks serialize upload/deletion, and startup can recover unfinished ingestion records under that assumption. Chroma filtering supplements, but does not replace, SQL ownership authorization.
+Database RLS is the final boundary, including direct browser/API requests. A project ID is only a selector, never authorization. Auth redirects use an exact destination allowlist. Dynamic authenticated pages and middleware responses must not be publicly cached.
 
-## Ingestion
+When public Supabase variables are absent, the root renders a read-only preview and auth forms are disabled. This is not an authentication bypass: preview has no database client, no private data and no saved documents. Adding configuration switches the root to authenticated mode. Partially configured credentials should be treated as a configuration error (see config validation).
 
-1. Authorize the caller against the project's owner.
-2. Sanitize the display filename, validate extension/signature, enforce byte limits, and check the SHA-256 duplicate constraint per project.
-3. Extract PDF pages with PyMuPDF; reject encrypted/image-only documents and warn about mixed scans. Extract DOCX body paragraphs/table rows with python-docx, and UTF-8 TXT lines. Apply PDF page, expanded ZIP, extracted text, and chunk limits.
-4. Chunk each locator independently with overlapping generic-token windows. PDF chunks retain physical page numbers; DOCX/TXT retain paragraph/line numbers.
-5. Create a processing source row and save original bytes under generated IDs. Embed in batches of 32 through Ollama and persist Chroma metadata (`project_id`, `file_id`, `filename`, `page`, `locator_type`). Mark ready only after indexing succeeds.
-6. On failure, mark failed and attempt vector/file cleanup. Delete the SQL row only after cleanup succeeds. Otherwise retain it for a retry or explicit deletion. Ready-only evidence selection prevents incomplete sources reaching chat.
+## Implemented data model
 
-The legacy `page` metadata/API field contains the locator number for every format; `locator_type` determines whether it means page, paragraph, or line.
+- profiles: owner is auth.users.id; private preferences.
+- projects: owner, title, bibliography style, timestamps, deletion tombstone.
+- sections: project-owned editor JSON, title/order, parent, revision. Composite parent/project foreign key blocks cross-project hierarchy links.
+- sources: server-controlled upload reservation, immutable storage path, status, PDF metadata, deletion tombstone.
+- source_pages: project/source composite FK, physical page, extracted text and position mapping.
+- notes: project-owned rich content.
+- jobs: project-owned status, checkpoint, lease and retries. Browser read-only.
 
-## Retrieval, generation, streaming
+Every application table has ENABLE and FORCE ROW LEVEL SECURITY. Browser grants are explicit. Project owner/tombstone fields and all ingestion fields are not client-updatable. Project/source deletion has no direct browser grant; later workers will coordinate storage cleanup before final row deletion.
 
-The API resolves project ownership before retrieval. Chroma queries filter by project and, for summaries, file **before** top-k selection. Cosine distance provides a configurable relevance cutoff. Retrieved entries must also correspond to ready SQL source records.
+private.owns_project is SECURITY INVOKER with a fixed empty search path. It requires both the authenticated owner and an active project. Profiles/sections/notes have owner-limited mutations; source/pages/jobs are read-only for authenticated callers.
 
-The model receives numbered JSON evidence and a system instruction to treat documents as data. It is asked to copy one exact source sentence per line. Complete lines are buffered and structurally validated: missing, malformed, or unknown evidence IDs reject the segment. Each generated sentence must also match a complete sentence in every cited excerpt after whitespace/case normalization; invented paraphrases and phrases stripped from a negation are rejected. Accepted references are replaced inline with server-owned file/locator labels, and SSE token events deliver only accepted segments. An empty result yields the exact abstention text. The final SSE event carries the answer, canonical citation objects, and conversation ID; only successful completions are persisted.
+Private buckets: sources, assets, exports. A source upload requires a reserved source row owned by the user and the exact storage path. No source overwrite policy. Assets and exports are deny-by-default until dedicated metadata/lifecycle policies exist. No public URLs.
 
-Streaming validation checks source text, reference provenance, and citation placement. This extractive MVP cannot prove a quotation answers the question, establish the truth of the original document, or eliminate document prompt injection. This limitation is explicit in the README and should be part of model evaluation.
+## Planned ingestion (Milestone 3)
 
-Ollama exceptions/timeouts and retrieval failures return actionable errors. Output length and generation time are bounded. Both chat and summaries share generation code, avoiding divergent validation behavior. Summaries retrieve aim/method/findings/limitations separately with a bounded combined context, then ask four individual section questions. The server adds section labels and honest abstentions for missing sections.
+Authorize/reserve → signed direct browser upload to Storage → verify stored object size and signature → durable Supabase queue → bounded Vercel Node worker → extract page batches → token chunks with overlap → batched hosted open-weight embeddings → pgvector index → ready.
 
-## Data model
+Use page/extraction checkpoints, stable chunk IDs, idempotent upserts, leases, bounded retries and a scheduled dispatcher. A browser closing or a Vercel invocation timing out must not lose a job. Jobs check deletion generation/state before committing, preventing source resurrection. Storage and database updates are not one distributed transaction.
 
-| Entity | Fields and relationships |
-| --- | --- |
-| User | UUID, unique normalized email, password hash; owns projects |
-| Project | UUID, owner FK, name; owns sources, conversations, notes |
-| SourceFile | UUID, project FK, filename, path, type, SHA-256, status, warning |
-| Conversation | UUID, project FK; owns messages |
-| ChatMessage | UUID, conversation FK, role, content, citation JSON, timestamp |
-| Note | UUID, project FK, title, content, citation JSON |
-| Chroma chunk | Unique ID, text/vector, project/file IDs, locator metadata |
+Plan 25 MB and 300 physical pages initially. Detect corrupt, encrypted, empty, scanned and partially scanned PDFs. Preserve position mappings and distinguish physical page index from printed page label. Multi-page chunk evidence must map to exact supporting pages. Progress reports actual stages/counts, not invented percentages.
 
-SQLite foreign keys are enabled in application and test connections. Project deletion cascades SQL children. File deletion removes its vector records, original bytes, and SQL row. Existing notes/history are retained after individual file deletion and their old citations become unavailable. Project deletion removes those records as well.
+Version embedding model ID, dimensions and preprocessing. Index one profile at a time; model changes require re-embedding and a deliberate index switch. Planned dimensions: 1024. Add the vector extension, HNSW index and authenticated SQL retrieval function with Milestone 3.
 
-Deletion marks files deleting before touching external stores. Failure retains records for retry; operations are not atomically committed across the three stores. Upload/delete operations for the same project are serialized within the one API process.
+## Planned assistant (Milestones 4–5)
 
-## Model changes and persistence
+A server-side adapter handles separate OpenAI-compatible chat and embedding providers. Initial candidates are qwen/qwen3.5-35b-a3b and qwen/qwen3-embedding-8b through OpenRouter. Environment variables allow changes; no proprietary fallback. Candidate quality is unverified until evaluated on app-specific evidence and abstention cases.
 
-URL, chat model, and embedding model come from environment settings. The vector collection carries an embedding-model stamp. A mismatch or unstamped nonempty legacy collection refuses retrieval/indexing until `python -m app.reindex` rebuilds from original uploads. Stop the API before reindexing. Incomplete rebuilds leave unfinished rows failed and can be retried. Embedding-model changes must never mix incompatible vector spaces.
+Research path: authorize project → persist/rate-limit request → embed query → SQL retrieval under owner/project filters → prompt with untrusted evidence → generate → validate source markers and passage offsets → stream segments → persist canonical citations.
 
-## Frontend
+Document text and user draft context cannot issue instructions or tool actions. Model output is never trusted as a file/page locator. Provenance validation cannot prove semantic entailment; evaluations cover relevance, unsupported synthesis, abstention and document prompt injection.
 
-The workspace loads projects, source status, notes, and persisted history. A shared SSE reader handles chat and summaries and rejects incomplete streams. A private source preview fetches original PDF bytes with authorization, creates a browser blob URL, and navigates to the cited page; blob URLs are revoked when the preview closes. DOCX/TXT locators show authenticated extracted text. No bearer tokens are placed in source URLs.
+Writing review path: explicitly selected draft text → feedback or proposed diff → user acceptance. Draft is context, not evidence. RRL review covers structure, synthesis and clarity; source checking requires uploaded papers. No unsupported claim of a field-wide research gap.
 
-## Tests and layout
+## Planned editor and deletion
 
-`backend/tests/` covers parsing, chunking, citation validation, auth/isolation, indexing recovery, deletion, reindexing, and API integration. `test_live_ollama.py` opts into real inference. `frontend/tests/` contains a Playwright test using isolated local servers, synthetic PDFs, and real Ollama. The browser harness uses separate temporary database/upload/index directories and separate Next.js build output.
+Tiptap core with custom citation, footnote, slash and suggestion extensions. Debounced autosave uses revision checks; show Saved only after acknowledgment. Proposals retain their original target revision and cannot silently overwrite newer edits. Canonical editor JSON feeds bibliography and DOCX/PDF serializers.
 
-```text
-backend/app/api/routes/     HTTP endpoints
-backend/app/core/           Configuration, hashing, tokens
-backend/app/db/             Engine, sessions, schema initialization/recovery
-backend/app/models/         SQL entities
-backend/app/services/       Extraction, chunking, vector store, RAG, streaming, locks
-backend/app/reindex.py      Explicit offline vector rebuild
-frontend/app/               Workspace and styling
-frontend/components/        Source preview
-frontend/lib/               Typed API, SSE, locator helpers
-frontend/tests/             Browser acceptance and synthetic sources
-docs/                       Architecture and verification notes
-```
+Bibliographic metadata is user-confirmed; unknown authors/dates are never invented. Source deletion tombstones access, cancels jobs, removes stored objects/vectors and scrubs citation references in editor/chat/notes. Retain student prose with an explicit removed-citation marker.
+
+## Verification boundaries
+
+PGlite executes these exact SQL migrations against real PostgreSQL RLS, with test-only Supabase auth/storage stubs. This verifies policy predicates, grants and relational integrity. It does not verify GoTrue, email, signed URLs, Storage HTTP, Realtime or hosted pgvector behavior. Those require a connected Supabase environment.
+
+Browser tests run the explicitly labeled preview. Hosted auth acceptance and upload-to-citation E2E remain release gates for later milestones.
