@@ -1,0 +1,324 @@
+/* Thesa reference styling; editor and persistence behavior remain in their components. */
+.wordmark {
+  font: 800 20px var(--sans);
+  letter-spacing: -0.5px;
+}
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.wordmark .brand-mark svg {
+  color: var(--on-accent);
+  width: 20px;
+  height: 20px;
+}
+.primary,
+.secondary {
+  min-height: 44px;
+  font-weight: 700;
+  border-radius: 12px;
+}
+.icon-button {
+  width: 36px;
+  height: 36px;
+}
+input:not(.chapter-title-input),
+select,
+textarea {
+  border-radius: 12px;
+}
+.project-form input,
+.project-form select,
+.project-form textarea,
+.auth-card input {
+  min-height: 48px;
+  border-color: #bfc7cf;
+  font-size: 15px;
+}
+.eyebrow,
+.section-label {
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+}
+.dashboard-main {
+  max-width: 1400px;
+  padding: 40px 64px;
+}
+.dashboard-title h1 {
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.dashboard-title > .eyebrow {
+  display: none;
+}
+.project-form,
+.project-card,
+.dashboard-empty,
+.library-empty,
+.summary-empty {
+  border-radius: 18px;
+}
+.project-form {
+  padding: 32px;
+}
+.project-form h2 {
+  font-size: 26px;
+  font-weight: 800;
+}
+.project-form label {
+  font-weight: 700;
+}
+.project-card h2 {
+  font-weight: 700;
+}
+.project-cover {
+  width: 64px;
+  height: 88px;
+  border-radius: 8px;
+}
+.dashboard-empty {
+  border-style: solid;
+}
+.dashboard-empty h2,
+.library-grid h2 {
+  font: 800 24px/1.3 var(--sans);
+  letter-spacing: -0.02em;
+}
+.otto {
+  width: 140px;
+  height: 140px;
+  object-fit: contain;
+  display: block;
+  margin-bottom: 16px;
+}
+.dashboard-empty .otto {
+  width: 160px;
+  height: 160px;
+}
+.chapter-row {
+  border-radius: 12px;
+}
+.chapter-select {
+  min-height: 44px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.upload-outline {
+  min-height: 44px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+.research-problem summary span:first-child {
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.editor-toolbar {
+  margin: 16px 20px 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 6px;
+}
+.editor-toolbar button {
+  min-width: 36px;
+  height: 38px;
+  border-radius: 10px;
+}
+.editor-toolbar select {
+  font-size: 12px;
+}
+.live-paper {
+  border-radius: 18px;
+  box-shadow: none;
+}
+.wireframe-workspace .save-indicator {
+  font-size: 11px;
+  border-radius: 99px;
+}
+.assistant-heading {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 16px;
+}
+.assistant-heading strong {
+  font-weight: 800;
+}
+.assistant-body h2 {
+  font: 800 23px/1.35 var(--sans);
+  letter-spacing: -0.03em;
+}
+.assistant-body > .otto {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 20px;
+}
+.source-drop {
+  border-radius: 14px;
+  background: var(--canvas);
+}
+.question-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.composer-box {
+  border-radius: 14px;
+}
+.auth-page {
+  padding: 0;
+  position: relative;
+}
+.auth-page > .wordmark {
+  position: absolute;
+  top: 32px;
+  left: 48px;
+  z-index: 1;
+}
+.auth-layout {
+  max-width: none;
+  min-height: calc(100dvh - 48px);
+  margin: 0;
+  gap: 0;
+  grid-template-columns: 1fr 1.15fr;
+  align-items: stretch;
+}
+.auth-intro {
+  grid-column: 2;
+  grid-row: 1;
+  background: #0e1512;
+  color: white;
+  padding: 70px 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.auth-intro h1 {
+  font: 800 clamp(32px, 3.7vw, 46px)/1.12 var(--sans);
+  letter-spacing: -0.03em;
+  max-width: 520px;
+}
+.auth-intro p {
+  color: #b9c4bf;
+  max-width: 480px;
+  font-size: 17px;
+  line-height: 1.6;
+}
+.auth-intro .eyebrow,
+.auth-intro small {
+  color: #b9c4bf;
+}
+.auth-intro .otto {
+  width: 200px;
+  height: 200px;
+}
+.auth-card {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+  justify-self: center;
+  width: min(100%, 460px);
+  padding: 110px 40px 40px;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.auth-card h2 {
+  font: 800 32px/1.2 var(--sans);
+  letter-spacing: -0.03em;
+}
+.auth-card > .eyebrow {
+  display: none;
+}
+.auth-footer {
+  margin: 0;
+  padding: 14px 24px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .otto-float {
+    animation: otto-float 4s ease-in-out infinite alternate;
+  }
+  @keyframes otto-float {
+    from {
+      transform: translateY(0) rotate(-1.5deg);
+    }
+    to {
+      transform: translateY(-7px) rotate(1.5deg);
+    }
+  }
+}
+@media (max-width: 980px) {
+  .dashboard-main {
+    padding: 32px 24px;
+  }
+  .auth-intro {
+    padding: 40px 28px;
+  }
+  .auth-card {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+  .editor-toolbar {
+    margin: 10px 12px 0;
+  }
+}
+@media (max-width: 640px) {
+  .dashboard-main {
+    padding: 30px 18px;
+  }
+  .project-form {
+    padding: 22px;
+  }
+  .project-form h2 {
+    font-size: 23px;
+  }
+  .form-columns select {
+    font-size: 12px;
+  }
+  .auth-layout {
+    display: block;
+    min-height: calc(100dvh - 48px);
+  }
+  .auth-intro {
+    display: none;
+  }
+  .auth-card {
+    padding-top: 110px;
+    margin: auto;
+  }
+  .auth-page > .wordmark {
+    left: 24px;
+  }
+  .editor-toolbar {
+    margin: 8px 8px 0;
+    gap: 2px;
+  }
+  .editor-toolbar button {
+    min-width: 32px;
+    height: 36px;
+  }
+  .wireframe-workspace .top-actions {
+    gap: 5px;
+  }
+  .wordmark {
+    font-size: 18px;
+  }
+  .brand-mark {
+    width: 30px;
+    height: 30px;
+  }
+}
+/* Dark emerald text on mint retains AA contrast at small label sizes. */
+:root:not([data-theme="dark"]) .draft-banner,
+:root:not([data-theme="dark"]) .chapter-row.active,
+:root:not([data-theme="dark"]) .research-problem summary span:first-child,
+:root:not([data-theme="dark"]) .editor-toolbar button[aria-pressed="true"] {
+  color: #06583f;
+}

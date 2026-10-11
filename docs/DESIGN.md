@@ -1,8 +1,8 @@
-# ThesisDesk: approved wireframe adaptation
+# Thesa: approved source design adaptation
 
 ## Direction
 
-Approved by the user after reviewing the six-page thesis-workspace-wireframe.pdf. Keep the name ThesisDesk; use white surfaces and a restrained green accent. Source Serif 4 remains the manuscript face; IBM Plex Sans is the interface face. Dark mode is separately tuned. Tokens live in frontend/styles/tokens.css.
+Approved by the user after reviewing the six-page thesis-workspace-wireframe.pdf. The later approved thesa-ui source refines this into Thesa: emerald accents, rounded cards, Manrope interface typography, Source Serif 4 manuscripts and Otto illustrations. The login uses a split form/illustration layout. Dark mode is separately tuned. Tokens live in frontend/styles/tokens.css; the adaptation layer lives in frontend/styles/thesa.css. Original prototype sample citations, percentages and fake messages are not used. Existing browser storage keys retain the thesisdesk prefix so drafts survive the rename. Otto motion respects reduced-motion preferences.
 
 ## Screen structure
 

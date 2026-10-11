@@ -22,7 +22,7 @@ test("dashboard creates a five-chapter thesis and persists writing across reload
   await page.reload();
   await expect(content).toContainText("Feedback helps students reflect");
   await expect(page.getByText("7 words · Browser draft")).toBeVisible();
-  await page.getByRole("link", { name: "ThesisDesk", exact: true }).click();
+  await page.getByRole("link", { name: "Thesa", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Your theses", exact: true }),
   ).toBeVisible();
@@ -196,6 +196,7 @@ test("theme, command palette, focus and source navigation work", async ({
   await page.getByRole("textbox", { name: "Search commands" }).fill("sources");
   await page.getByRole("button", { name: "Show sources", exact: true }).click();
   await expect(page.getByRole("heading", { name: /Sources/ })).toBeVisible();
+  await page.screenshot({ path: "test-results/sources-thesa.png", fullPage: true });
   await page.getByRole("button", { name: "Upload PDF", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("PDF upload arrives");
   await page
@@ -242,6 +243,7 @@ test("account setup remains explicit and invalid recovery links stay on site", a
   await expect(
     page.getByRole("button", { name: "Sign in", exact: true }),
   ).toBeDisabled();
+  await page.screenshot({ path: "test-results/auth-thesa.png", fullPage: true });
   await page.goto("/auth/callback?code=invalid&next=https://evil.example");
   await expect(page).toHaveURL(/\/auth\?error=link$/);
   await expect(

@@ -1,6 +1,7 @@
 "use client";
 import * as Dialog from "@radix-ui/react-dialog";
 import Link from "next/link";
+import { Brand } from "./Brand";
 import { useRouter } from "next/navigation";
 import {
   useCallback,
@@ -251,8 +252,7 @@ export function Workspace({
             if (await flush()) router.push("/");
           }}
         >
-          <BookOpen size={24} />
-          ThesisDesk
+          <Brand />
         </Link>
         <span className="top-divider" />
         <span className="workspace-title">{project.title}</span>

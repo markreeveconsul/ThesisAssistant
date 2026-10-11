@@ -1,7 +1,9 @@
 "use client";
+import { Otto } from "./Otto";
 import Link from "next/link";
+import { Brand } from "./Brand";
 import { useEffect, useState } from "react";
-import { BookOpen, FileText, ArrowRight } from "lucide-react";
+import { FileText, ArrowRight } from "lucide-react";
 import type { Project } from "@/lib/workspace";
 import { readLocal } from "@/lib/local-workspace";
 import { ProjectForm } from "./ProjectForm";
@@ -35,8 +37,7 @@ export function Dashboard({
     <div className="dashboard">
       <header className="topbar">
         <Link href="/" className="wordmark">
-          <BookOpen size={24} />
-          ThesisDesk
+          <Brand />
         </Link>
         <div className="top-actions">
           <span className="small-tag">
@@ -95,7 +96,7 @@ export function Dashboard({
               ))
             ) : (
               <div className="dashboard-empty">
-                <BookOpen size={35} strokeWidth={1} />
+                <Otto animate />
                 <h2>Room for your next idea.</h2>
                 <p>
                   Create your first thesis. Your chapters, research question,
