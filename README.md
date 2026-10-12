@@ -9,7 +9,7 @@ A thesis-writing workspace built with Next.js, Tiptap and Supabase, with hosted 
 - Real Tiptap editing: headings, bold/italic/underline, lists, block quotes, tables, HTTPS image links with alt text, footnotes, undo/redo, find/replace, word count and a small slash-tool menu.
 - Chapter creation, renaming, switching, drag ordering and keyboard-accessible reorder controls.
 - Debounced serialized autosave with visible states, revision conflicts, tab recovery and JSON chapter backup downloads.
-- Focus mode, collapsible/resizable assistant, command palette, mobile reading/editing, light/dark themes.
+- Focus mode, floating/docked Otto panel, command palette, mobile reading/editing, light/dark themes. Ctrl/⌘ K toggles Otto; Ctrl/⌘ Shift K opens commands. Escape closes Otto or exits focus mode.
 - Supabase auth routes, user-isolated schema and storage policies. Hosted auth and cloud saves still require account setup.
 
 **Sources and the assistant are not connected yet.** Their UI states say so. Uploading, PDF evidence viewing, retrieval, AI answers, citations, notes and DOCX/PDF export remain later milestones.
