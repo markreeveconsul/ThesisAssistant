@@ -12,11 +12,15 @@ A thesis-writing workspace built with Next.js, Tiptap and Supabase, with hosted 
 - Focus mode, floating/docked Otto panel, command palette, mobile reading/editing, light/dark themes. Ctrl/⌘ K toggles Otto; Ctrl/⌘ Shift K opens commands. Escape closes Otto or exits focus mode.
 - Supabase auth routes, user-isolated schema and storage policies. Hosted auth and cloud saves still require account setup.
 
-**Sources and the assistant are not connected yet.** Their UI states say so. Uploading, PDF evidence viewing, retrieval, AI answers, citations, notes and DOCX/PDF export remain later milestones.
+**Source uploads and reading work for browser drafts.** PDF/DOCX/TXT files are parsed by a local Python/FastAPI service and saved in IndexedDB. The reader supports original PDF rendering, page navigation, zoom, text search and original-file download. Source deletion removes the stored file and extracted text. See [source setup and limits](docs/SOURCE_UPLOADS.md). AI chat, summaries, citation insertion, notes and DOCX/PDF export remain pending.
 
 ## Run locally
 
-Requires Node.js 22+ and npm. No Python, Ollama or Docker is required for the UI.
+**Windows shortcut:** after the one-time dependency setup in [SOURCE_UPLOADS.md](docs/SOURCE_UPLOADS.md), double-click **Start Thesa.cmd** in the repository root. It starts the frontend and document parser, then opens `http://127.0.0.1:3002`. No terminal commands are needed for subsequent runs. Keep its status window open; press Enter there to stop the services it started. Existing compatible services are reused and left running. Diagnostic logs are in ignored `.thesa-run/`.
+
+Browser drafts are tied to the exact address: `localhost`, `127.0.0.1` and different ports have separate storage. The launcher consistently uses `127.0.0.1:3002`; it does not move drafts from another address.
+
+Requires Node.js 22+ and npm. The editor alone needs no Python, Ollama or Docker. Source upload/parsing additionally requires the FastAPI service described in [SOURCE_UPLOADS.md](docs/SOURCE_UPLOADS.md).
 
 ~~~powershell
 cd frontend
@@ -93,7 +97,7 @@ Playwright uses an isolated development server on port 3012, real browser storag
 - frontend/: active application and tests.
 - supabase/migrations/: SQL schema, grants, RLS and editor functions.
 - docs/ARCHITECTURE.md and docs/DESIGN.md: decisions and implementation boundaries.
-- backend/: preserved legacy FastAPI code, unused by the new application.
+- backend/document_service/: active local FastAPI parser, with bounded extraction reused from backend/app/services/parsing.py. Other backend/app routes remain legacy and are not connected to this UI.
 
 The original C:\Users\Admin\thesis-assistant checkout is unchanged. Work is in the SisAssist repository on codex/thesisdesk.
 
@@ -104,7 +108,7 @@ The original C:\Users\Admin\thesis-assistant checkout is unchanged. Work is in t
 - Footnotes currently use linked dagger markers and an end-of-chapter list. Final export/pagination is not implemented.
 - Browser backups are per chapter; bulk import/export and cloud draft migration are not implemented.
 - Large-document performance and full assistive-technology review remain final-MVP checks.
-- Next: direct PDF upload, resumable ingestion, source processing statuses and evidence viewer.
+- Source uploads currently use browser-local storage and a loopback parser. Authenticated cloud uploads and durable background ingestion remain pending.
 - Then: grounded assistant, selected-text/RRL review, accepted suggestions, bibliography, notes and exports.
 
 No OCR, collaboration, sharing, paper discovery, plagiarism checks or unverifiable alignment/AI-detection percentages are included.

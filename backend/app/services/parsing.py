@@ -23,6 +23,8 @@ class ExtractedPage:
 
 
 def _bounded(pages: list[ExtractedPage]) -> list[ExtractedPage]:
+    if len(pages) > 10000:
+        raise HTTPException(413, "The document exceeds 10,000 extracted locations; split it into smaller files")
     if sum(len(page.text) for page in pages) > settings.max_extracted_chars:
         raise HTTPException(413, "The extracted document exceeds the text limit")
     if not any(page.text.strip() for page in pages):
@@ -44,6 +46,8 @@ def extract_pages(filename: str, content: bytes) -> tuple[list[ExtractedPage], s
                     raise HTTPException(413, "The expanded DOCX exceeds the document limit")
                 if "word/document.xml" not in archive.namelist():
                     raise HTTPException(422, "The file is not a valid DOCX document")
+                if any(item.flag_bits & 1 for item in entries):
+                    raise HTTPException(422, "Encrypted DOCX files are not supported")
             document = Document(BytesIO(content))
             pages: list[ExtractedPage] = []
             for block in document.iter_inner_content():
@@ -58,6 +62,8 @@ def extract_pages(filename: str, content: bytes) -> tuple[list[ExtractedPage], s
                         pages.append(ExtractedPage(len(pages) + 1, text.strip(), "paragraph"))
             return _bounded(pages), "DOCX citations use extracted paragraph numbers (table rows count as paragraphs), not physical pages."
         if suffix == ".txt":
+            if b"\x00" in content:
+                raise HTTPException(422, "TXT files must contain UTF-8 text, not binary data or UTF-16")
             pages = [ExtractedPage(index, line, "line") for index, line in enumerate(content.decode("utf-8-sig").splitlines(), 1) if line.strip()]
             return _bounded(pages), "TXT citations use original line numbers, not physical pages."
     except (BadZipFile, KeyError, XMLSyntaxError, UnicodeDecodeError, ValueError, RuntimeError, OSError) as exc:

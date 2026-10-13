@@ -35,6 +35,9 @@ import { ResearchProblem } from "./ResearchProblem";
 import { SourceLibrary } from "./SourceLibrary";
 import { AssistantPanel } from "./AssistantPanel";
 import { ThemeButton } from "./ThemeButton";
+import { Otto } from "./Otto";
+import { EvidenceReader } from "./EvidenceReader";
+import { listSources, watchSources, type SourceInfo } from "@/lib/sources";
 
 export function Workspace({
   local,
@@ -55,15 +58,44 @@ export function Workspace({
     [notice, setNotice] = useState("");
   const [focus, setFocus] = useState(false),
     [left, setLeft] = useState(true),
-    [right, setRight] = useState(true),
-    [width, setWidth] = useState(330);
-  const [view, setView] = useState<"editor" | "sources">("editor"),
+    [right, setRight] = useState(false),
+    [docked, setDocked] = useState(false);
+  const [view, setView] = useState<"editor" | "sources" | "reader">("editor"),
     [busy, setBusy] = useState(false),
     [saveLabel, setSaveLabel] = useState(
       local ? "Browser draft" : "Cloud workspace",
     );
   const [command, setCommand] = useState(false),
     [query, setQuery] = useState("");
+  const [sources, setSources] = useState<SourceInfo[]>([]);
+  const [sourceError, setSourceError] = useState("");
+  const [sourceId, setSourceId] = useState<string>();
+  useEffect(() => {
+    let alive = true;
+    async function refresh() {
+      if (!local) return;
+      try {
+        const items = await listSources(projectId);
+        if (alive) {
+          setSources(items);
+          setSourceError("");
+        }
+      } catch (error) {
+        if (alive)
+          setSourceError(
+            error instanceof Error
+              ? error.message
+              : "Could not load source storage.",
+          );
+      }
+    }
+    void refresh();
+    const stop = watchSources(() => void refresh());
+    return () => {
+      alive = false;
+      stop();
+    };
+  }, [local, projectId]);
   const handle = useRef<EditorHandle | null>(null),
     router = useRouter();
   const ready = useCallback((value: EditorHandle) => {
@@ -91,7 +123,11 @@ export function Workspace({
     const key = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        setCommand((value) => !value);
+        if (event.shiftKey) setCommand((value) => !value);
+        else {
+          setFocus(false);
+          setRight((value) => !value);
+        }
       }
       if (event.key === "Escape") setFocus(false);
     };
@@ -257,58 +293,100 @@ export function Workspace({
         <span className="top-divider" />
         <span className="workspace-title">{project.title}</span>
         <div className="top-actions">
-          <span className="save-indicator">{saveLabel}</span>
-          <button
-            className="icon-button"
-            aria-label="Open command palette"
-            onClick={() => setCommand(true)}
-          >
-            <Command size={17} />
-          </button>
-          <ThemeButton />
-          <button
-            className="quiet-button"
-            aria-pressed={focus}
-            onClick={() => setFocus((value) => !value)}
-          >
-            <Focus size={16} />
-            {focus ? "Exit focus" : "Focus mode"}
-          </button>
-          <button
-            className="secondary export-button"
-            onClick={() => unavailable("DOCX and PDF export")}
-          >
-            Export
-          </button>
+          {view !== "editor" ? (
+            <button className="secondary" onClick={() => setView("editor")}>
+              <ArrowLeft size={16} />
+              Back to editor
+            </button>
+          ) : (
+            <>
+              <details className="save-details">
+                <summary className="save-indicator">{saveLabel}</summary>
+                <div>
+                  <p>
+                    {local
+                      ? "Browser draft · saved on this device, not your account."
+                      : "Your private cloud workspace."}
+                  </p>
+                  <button
+                    className="text-button"
+                    onClick={() => handle.current?.download()}
+                    disabled={!active}
+                  >
+                    <Download size={12} /> Download chapter backup
+                  </button>
+                </div>
+              </details>
+              <button
+                className="icon-button"
+                aria-label="Open command palette"
+                title="Commands (Ctrl/⌘ Shift K)"
+                onClick={() => setCommand(true)}
+              >
+                <Command size={17} />
+              </button>
+              <ThemeButton />
+              <button
+                className="quiet-button"
+                aria-pressed={focus}
+                onClick={() => setFocus((value) => !value)}
+              >
+                <Focus size={16} />
+                {focus ? "Exit focus" : "Focus mode"}
+              </button>
+              <button
+                className="secondary share-button"
+                onClick={() =>
+                  setNotice(
+                    "Sharing is not connected yet. Browser drafts stay on this device. Download a chapter backup from the save menu or command palette.",
+                  )
+                }
+              >
+                Share
+              </button>
+              <button
+                className="primary export-button"
+                onClick={() => unavailable("DOCX and PDF export")}
+              >
+                Export
+              </button>
+            </>
+          )}
         </div>
       </header>
-      {local && (
-        <div className="draft-banner">
-          Browser draft · saved on this device, not your account.
-          <button onClick={() => handle.current?.download()} disabled={!active}>
-            <Download size={12} />
-            Download chapter backup
-          </button>
-        </div>
-      )}
-      {view === "sources" ? (
+      {view === "reader" ? (
+        <EvidenceReader
+          section={active}
+          projectId={projectId}
+          sourceId={sourceId}
+          local={local}
+          onBack={() => setView("sources")}
+        />
+      ) : view === "sources" ? (
         <SourceLibrary
-          onBack={() => setView("editor")}
-          onNotice={() => unavailable("PDF upload")}
+          projectId={projectId}
+          local={local}
+          sources={sources}
+          storageError={sourceError}
+          onReader={(id) => {
+            setSourceId(id);
+            setView("reader");
+          }}
         />
       ) : (
         <div
           className="workspace-grid"
           style={
             {
-              "--left-width": left && !focus ? "252px" : "0px",
-              "--right-width": right && !focus ? width + "px" : "0px",
+              "--left-width": left && !focus ? "272px" : "0px",
+              "--right-width": right && docked && !focus ? "380px" : "0px",
             } as CSSProperties
           }
         >
           {left && !focus && (
             <ChapterNavigation
               project={project}
+              sourceCount={sources.length}
               sections={chapters}
               activeId={activeId}
               onSelect={(id) => void select(id)}
@@ -344,12 +422,6 @@ export function Workspace({
                 {right && !focus ? "Hide assistant" : "Show assistant"}
               </button>
             </div>
-            <ResearchProblem
-              key={project.id}
-              project={project}
-              local={local}
-              onSaved={setProject}
-            />
             {active ? (
               <ChapterEditor
                 key={active.id + ":" + editorGeneration}
@@ -358,10 +430,19 @@ export function Workspace({
                 onSaved={saved}
                 onReady={ready}
                 onStatus={setSaveLabel}
+                researchProblem={
+                  <ResearchProblem
+                    key={project.id}
+                    project={project}
+                    local={local}
+                    onSaved={setProject}
+                  />
+                }
+                onUnavailable={unavailable}
               />
             ) : (
               <div className="empty-editor">
-                <span className="eyebrow">A FRESH PAGE</span>
+                <Otto pose="welcome" />
                 <h1>Start your first section</h1>
                 <p>Pick a way to begin. You can change your mind anytime.</p>
                 <div className="start-options">
@@ -389,16 +470,17 @@ export function Workspace({
               </div>
             )}
           </main>
-          {right && !focus && (
-            <AssistantPanel
-              panelWidth={width}
-              setPanelWidth={setWidth}
-              onHide={() => setRight(false)}
-              onSources={() => void showSources()}
-              onUnavailable={unavailable}
-            />
-          )}
         </div>
+      )}
+      {view === "editor" && !focus && (
+        <AssistantPanel
+          open={right}
+          docked={docked}
+          onOpenChange={setRight}
+          onDockChange={setDocked}
+          onSources={() => void showSources()}
+          onUnavailable={unavailable}
+        />
       )}
       <nav className="mobile-nav" aria-label="Mobile workspace">
         <button
