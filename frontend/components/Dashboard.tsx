@@ -3,7 +3,6 @@ import { Otto } from "./Otto";
 import Link from "next/link";
 import { Brand } from "./Brand";
 import { useEffect, useState } from "react";
-import { FileText, ArrowRight } from "lucide-react";
 import type { Project } from "@/lib/workspace";
 import { readLocal } from "@/lib/local-workspace";
 import { ProjectForm } from "./ProjectForm";
@@ -78,7 +77,13 @@ export function Dashboard({
                   key={project.id}
                 >
                   <span className="project-cover">
-                    <FileText size={30} strokeWidth={1} />
+                    <span className="paper-thumbnail" aria-hidden="true">
+                      <i />
+                      <i />
+                      <i />
+                      <i />
+                      <i />
+                    </span>
                   </span>
                   <div>
                     <h2>{project.title}</h2>
@@ -91,7 +96,7 @@ export function Dashboard({
                       {local ? "Browser draft" : "Cloud project"}
                     </small>
                   </div>
-                  <ArrowRight size={18} />
+                  <span className="secondary project-open">Open</span>
                 </Link>
               ))
             ) : (

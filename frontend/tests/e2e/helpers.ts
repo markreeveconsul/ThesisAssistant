@@ -17,7 +17,8 @@ export async function createThesis(
   await page
     .getByRole("button", { name: "Create thesis", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/project\/[a-f0-9-]+$/);
+  // The development server compiles this route on its first visit.
+  await expect(page).toHaveURL(/\/project\/[a-f0-9-]+$/, { timeout: 30000 });
   if (structure !== "blank")
     await expect(
       page.getByRole("textbox", { name: "Chapter content", exact: true }),

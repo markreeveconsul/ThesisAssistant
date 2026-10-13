@@ -2,9 +2,9 @@
 
 ## Status
 
-This document separates implemented foundation from planned pipeline. Milestones 1–2 use Next.js App Router, strict TypeScript, Tailwind CSS, Radix Dialog, self-hosted fonts and Supabase SSR. The Tiptap editor is implemented; ingestion and inference are not connected yet. Account setup and Vercel deployment were explicitly deferred by the user.
+This document separates implemented foundation from planned pipeline. Milestones 1–2 use Next.js App Router, strict TypeScript, Tailwind CSS, Radix Dialog, self-hosted fonts and Supabase SSR. The Tiptap editor is implemented; browser-draft ingestion now runs through the local FastAPI document service; inference is not connected yet. Account setup and Vercel deployment were explicitly deferred by the user.
 
-The existing Git history was imported into the previously empty SisAssist workspace. The original thesis-assistant checkout remains unchanged. The legacy Python backend is reference material only.
+The existing Git history was imported into the previously empty SisAssist workspace. The original thesis-assistant checkout remains unchanged. The legacy Python API routes remain disconnected. The active document_service reuses the bounded Python parser without importing Ollama or vector-store code. See SOURCE_UPLOADS.md for the implemented local storage and request boundaries.
 
 ## Runtime and trust boundaries
 
@@ -30,7 +30,13 @@ private.owns_project is SECURITY INVOKER with a fixed empty search path. It requ
 
 Private buckets: sources, assets, exports. A source upload requires a reserved source row owned by the user and the exact storage path. No source overwrite policy. Assets and exports are deny-by-default until dedicated metadata/lifecycle policies exist. No public URLs.
 
-## Planned ingestion (Milestone 3)
+## Implemented local ingestion and remaining cloud plan
+
+Browser files -> loopback FastAPI validation -> time-limited Python parser process -> extracted locations -> atomic IndexedDB metadata/file/text save -> project-scoped source library and PDF.js/text reader. This path has no embeddings and no server-side document retention. Authenticated cloud-mode uploads remain disabled.
+
+The older cloud-ingestion proposal below is not implemented and must be revised around the agreed Python/FastAPI backend before deployment.
+
+## Earlier cloud ingestion proposal
 
 Authorize/reserve → signed direct browser upload to Storage → verify stored object size and signature → durable Supabase queue → bounded Vercel Node worker → extract page batches → token chunks with overlap → batched hosted open-weight embeddings → pgvector index → ready.
 

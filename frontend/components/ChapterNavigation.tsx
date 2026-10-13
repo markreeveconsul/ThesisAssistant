@@ -12,6 +12,7 @@ import {
 import type { Project, Section } from "@/lib/workspace";
 export function ChapterNavigation({
   project,
+  sourceCount,
   sections,
   activeId,
   onSelect,
@@ -21,6 +22,7 @@ export function ChapterNavigation({
   busy,
 }: {
   project: Project;
+  sourceCount: number;
   sections: Section[];
   activeId?: string;
   onSelect: (id: string) => void;
@@ -48,7 +50,7 @@ export function ChapterNavigation({
       </div>
       <div className="nav-body">
         <div className="section-label">
-          CHAPTERS
+          Chapters
           <button
             className="icon-button"
             aria-label="Add chapter"
@@ -151,11 +153,11 @@ export function ChapterNavigation({
           </button>
         )}
         <div className="source-nav">
-          <div className="section-label">SOURCES · 0</div>
+          <div className="section-label">Sources ({sourceCount})</div>
           <p>Your evidence, close at hand.</p>
           <button className="upload-outline" onClick={onSources}>
             <Upload size={16} />
-            Upload PDF
+            Upload sources
           </button>
           <button className="nav-help" onClick={onSources}>
             <Library size={16} />

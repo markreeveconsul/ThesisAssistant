@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { TableKit } from "@tiptap/extension-table";
@@ -19,7 +19,11 @@ export function ChapterEditor({
   onSaved,
   onReady,
   onStatus,
+  researchProblem,
+  onUnavailable,
 }: {
+  researchProblem: ReactNode;
+  onUnavailable: (feature: string) => void;
   section: Section;
   local: boolean;
   onSaved: (section: Section) => void;
@@ -109,7 +113,8 @@ export function ChapterEditor({
   collect(json);
   return (
     <div className="chapter-editor">
-      <EditorTools editor={editor} />
+      <EditorTools editor={editor} onUnavailable={onUnavailable} />
+      {researchProblem}
       {save.recovery && (
         <div className="recovery-notice" role="status">
           <p>
@@ -162,7 +167,6 @@ export function ChapterEditor({
         aria-label="Writing surface"
       >
         <article className="document-paper live-paper">
-          <span className="chapter-kicker">YOUR MANUSCRIPT</span>
           <label className="sr-only" htmlFor="chapter-title">
             Chapter title
           </label>

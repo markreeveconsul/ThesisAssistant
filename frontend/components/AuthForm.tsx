@@ -25,21 +25,30 @@ export function AuthForm({
   }[mode];
   return (
     <main className="auth-page">
-      <Link href="/" className="wordmark">
-        <Brand />
-      </Link>
       <div className="auth-layout">
         <section className="auth-intro">
-          <span className="eyebrow">YOUR RESEARCH. YOUR WORDS.</span>
           <h1>Your thesis, backed by every source you read.</h1>
           <p>
             A thoughtful space to write, connect your sources, and develop your
             thesis—one paragraph at a time.
           </p>
-          <Otto animate />
-          <small>YOUR RESEARCH COMPANION</small>
+          <div className="auth-manuscript">
+            <Otto animate />
+            <span className="eyebrow">ILLUSTRATIVE PREVIEW</span>
+            <h3>From reading to understanding.</h3>
+            <p>
+              Bring your ideas and your reading together. Keep your research
+              question close as you develop each paragraph.
+            </p>
+            <span className="sample-citation">
+              Trace claims to their sources
+            </span>
+          </div>
         </section>
         <section className="auth-card">
+          <Link href="/" className="wordmark">
+            <Brand />
+          </Link>
           <span className="eyebrow">THESA</span>
           <h2>{title}</h2>
           <p>
@@ -115,6 +124,15 @@ export function AuthForm({
               <ArrowRight size={16} />
             </button>
           </form>
+          {mode === "login" && (
+            <button
+              className="secondary google-login"
+              disabled
+              title="Google sign-in is not connected yet"
+            >
+              Continue with Google · coming soon
+            </button>
+          )}
           {!recovery && (
             <div className="auth-links">
               <button

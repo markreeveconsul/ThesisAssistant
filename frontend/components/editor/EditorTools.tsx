@@ -10,7 +10,6 @@ import {
   Quote,
   Undo2,
   Redo2,
-  Table2,
   Search,
   ImagePlus,
   Footprints,
@@ -18,7 +17,13 @@ import {
 } from "lucide-react";
 import { findText } from "@/lib/editor-search";
 import { isSafeImage } from "@/lib/document";
-export function EditorTools({ editor }: { editor: Editor }) {
+export function EditorTools({
+  editor,
+  onUnavailable,
+}: {
+  editor: Editor;
+  onUnavailable: (feature: string) => void;
+}) {
   const [tool, setTool] = useState<"find" | "image" | "footnote" | null>(null),
     [find, setFind] = useState(""),
     [replacement, setReplacement] = useState(""),
@@ -94,18 +99,6 @@ export function EditorTools({ editor }: { editor: Editor }) {
             active: editor.isActive("bulletList"),
             run: () => editor.chain().focus().toggleBulletList().run(),
           },
-          {
-            name: "Numbered list",
-            Icon: ListOrdered,
-            active: editor.isActive("orderedList"),
-            run: () => editor.chain().focus().toggleOrderedList().run(),
-          },
-          {
-            name: "Block quote",
-            Icon: Quote,
-            active: editor.isActive("blockquote"),
-            run: () => editor.chain().focus().toggleBlockquote().run(),
-          },
         ].map(({ name, Icon, active, run }) => (
           <button
             key={name}
@@ -114,7 +107,7 @@ export function EditorTools({ editor }: { editor: Editor }) {
             aria-pressed={active}
             onClick={run}
           >
-            <Icon size={16} />
+            {name === "Bullet list" ? "List" : <Icon size={16} />}
           </button>
         ))}
         <button
@@ -128,44 +121,79 @@ export function EditorTools({ editor }: { editor: Editor }) {
               .run()
           }
         >
-          <Table2 size={16} />
+          Table
         </button>
-        <button
-          aria-label="Insert image"
-          title="Insert image"
-          onClick={() => setTool(tool === "image" ? null : "image")}
-        >
-          <ImagePlus size={16} />
+        <button onClick={() => onUnavailable("Document comments")}>
+          Comment
         </button>
+        <details className="more-tools">
+          <summary>More</summary>
+          <div>
+            <button
+              aria-label="Numbered list"
+              aria-pressed={editor.isActive("orderedList")}
+              onClick={() => editor.chain().focus().toggleOrderedList().run()}
+            >
+              <ListOrdered size={16} />
+              Numbered list
+            </button>
+            <button
+              aria-label="Block quote"
+              aria-pressed={editor.isActive("blockquote")}
+              onClick={() => editor.chain().focus().toggleBlockquote().run()}
+            >
+              <Quote size={16} />
+              Block quote
+            </button>
+            <button
+              aria-label="Insert image"
+              title="Insert image"
+              onClick={() => setTool(tool === "image" ? null : "image")}
+            >
+              <ImagePlus size={16} />
+              Image
+            </button>
+            <button
+              aria-label="Insert footnote"
+              title="Insert footnote"
+              onClick={() => setTool(tool === "footnote" ? null : "footnote")}
+            >
+              <Footprints size={16} />
+              Footnote
+            </button>
+            <button
+              aria-label="Find and replace"
+              title="Find and replace"
+              onClick={() => setTool(tool === "find" ? null : "find")}
+            >
+              <Search size={16} />
+              Find and replace
+            </button>
+            <button
+              aria-label="Undo"
+              title="Undo"
+              disabled={!editor.can().undo()}
+              onClick={() => editor.chain().focus().undo().run()}
+            >
+              <Undo2 size={16} />
+              Undo
+            </button>
+            <button
+              aria-label="Redo"
+              title="Redo"
+              disabled={!editor.can().redo()}
+              onClick={() => editor.chain().focus().redo().run()}
+            >
+              <Redo2 size={16} />
+              Redo
+            </button>
+          </div>
+        </details>
         <button
-          aria-label="Insert footnote"
-          title="Insert footnote"
-          onClick={() => setTool(tool === "footnote" ? null : "footnote")}
+          className="citation-button"
+          onClick={() => onUnavailable("Citation insertion")}
         >
-          <Footprints size={16} />
-        </button>
-        <button
-          aria-label="Find and replace"
-          title="Find and replace"
-          onClick={() => setTool(tool === "find" ? null : "find")}
-        >
-          <Search size={16} />
-        </button>
-        <button
-          aria-label="Undo"
-          title="Undo"
-          disabled={!editor.can().undo()}
-          onClick={() => editor.chain().focus().undo().run()}
-        >
-          <Undo2 size={16} />
-        </button>
-        <button
-          aria-label="Redo"
-          title="Redo"
-          disabled={!editor.can().redo()}
-          onClick={() => editor.chain().focus().redo().run()}
-        >
-          <Redo2 size={16} />
+          Insert citation
         </button>
       </div>
       {editor.isActive("table") && (

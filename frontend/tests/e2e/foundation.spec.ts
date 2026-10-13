@@ -44,6 +44,7 @@ test("formatting, find/replace, tables and footnotes are real editor operations"
     exact: true,
   });
   await content.fill("Students learn. Students compare.");
+  await page.locator(".more-tools summary").click();
   await page
     .getByRole("button", { name: "Find and replace", exact: true })
     .click();
@@ -178,27 +179,43 @@ test("theme, command palette, focus and source navigation work", async ({
   await createThesis(page);
   await page.getByRole("button", { name: "Focus mode", exact: true }).click();
   await expect(
-    page.getByRole("complementary", {
-      name: "Research assistant",
+    page.getByRole("dialog", {
+      name: "Otto assistant",
       exact: true,
     }),
   ).toHaveCount(0);
   await page.keyboard.press("Escape");
-  const resize = page.getByRole("separator", { name: "Resize assistant" });
-  await resize.focus();
-  await page.keyboard.press("ArrowLeft");
-  await expect(resize).toHaveAttribute("aria-valuenow", "350");
+  await page.getByRole("button", { name: "Open Otto assistant" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Otto assistant" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Dock", exact: true }).click();
+  await expect(page.locator(".otto-panel")).toHaveClass(/docked/);
+  await page.getByRole("button", { name: "Float", exact: true }).click();
+  await page.screenshot({
+    path: "test-results/otto-floating.png",
+    fullPage: true,
+  });
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("button", { name: "Open Otto assistant" }),
+  ).toBeFocused();
   await page
     .getByRole("button", { name: "Use dark theme", exact: true })
     .click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await page.keyboard.press("Control+k");
+  await page.keyboard.press("Control+Shift+k");
   await page.getByRole("textbox", { name: "Search commands" }).fill("sources");
   await page.getByRole("button", { name: "Show sources", exact: true }).click();
   await expect(page.getByRole("heading", { name: /Sources/ })).toBeVisible();
-  await page.screenshot({ path: "test-results/sources-thesa.png", fullPage: true });
-  await page.getByRole("button", { name: "Upload PDF", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("PDF upload arrives");
+  await page.screenshot({
+    path: "test-results/sources-thesa.png",
+    fullPage: true,
+  });
+  await expect(page.getByLabel("Choose source files")).toHaveAttribute(
+    "accept",
+    ".pdf,.docx,.txt",
+  );
   await page
     .getByRole("button", { name: "Back to editor", exact: true })
     .click();
@@ -224,8 +241,8 @@ test("mobile editor and panel navigation fit the viewport", async ({
   ).toBe(true);
   await mobile.getByRole("button", { name: "Assistant", exact: true }).click();
   await expect(
-    page.getByRole("complementary", {
-      name: "Research assistant",
+    page.getByRole("dialog", {
+      name: "Otto assistant",
       exact: true,
     }),
   ).toBeVisible();
@@ -243,7 +260,10 @@ test("account setup remains explicit and invalid recovery links stay on site", a
   await expect(
     page.getByRole("button", { name: "Sign in", exact: true }),
   ).toBeDisabled();
-  await page.screenshot({ path: "test-results/auth-thesa.png", fullPage: true });
+  await page.screenshot({
+    path: "test-results/auth-thesa.png",
+    fullPage: true,
+  });
   await page.goto("/auth/callback?code=invalid&next=https://evil.example");
   await expect(page).toHaveURL(/\/auth\?error=link$/);
   await expect(
