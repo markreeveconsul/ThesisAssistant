@@ -28,12 +28,14 @@ export function EvidenceReader({
   section,
   projectId,
   sourceId,
+  initialLocation,
   local,
   onBack,
 }: {
   section?: Section;
   projectId: string;
   sourceId?: string;
+  initialLocation?: number;
   local: boolean;
   onBack: () => void;
 }) {
@@ -57,6 +59,10 @@ export function EvidenceReader({
         const value = await getSource(projectId, sourceId);
         if (alive) {
           setSource(value);
+          if (initialLocation !== undefined && value) {
+            const index = value.pages.findIndex(page => page.page_number === initialLocation);
+            setPosition(Math.max(0, index));
+          }
           setError(
             value
               ? ""
@@ -82,7 +88,7 @@ export function EvidenceReader({
       alive = false;
       stop();
     };
-  }, [sourceId, projectId, local]);
+  }, [sourceId, projectId, local, initialLocation]);
   const text =
     section && validateDocument(section.content)
       ? excerpt(section.content).slice(0, 1800)

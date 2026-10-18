@@ -70,6 +70,7 @@ export function Workspace({
   const [sources, setSources] = useState<SourceInfo[]>([]);
   const [sourceError, setSourceError] = useState("");
   const [sourceId, setSourceId] = useState<string>();
+  const [sourceLocation, setSourceLocation] = useState<number>();
   useEffect(() => {
     let alive = true;
     async function refresh() {
@@ -359,6 +360,7 @@ export function Workspace({
           section={active}
           projectId={projectId}
           sourceId={sourceId}
+          initialLocation={sourceLocation}
           local={local}
           onBack={() => setView("sources")}
         />
@@ -370,6 +372,7 @@ export function Workspace({
           storageError={sourceError}
           onReader={(id) => {
             setSourceId(id);
+            setSourceLocation(undefined);
             setView("reader");
           }}
         />
@@ -472,16 +475,26 @@ export function Workspace({
           </main>
         </div>
       )}
-      {view === "editor" && !focus && (
+      <div hidden={view !== "editor" || focus}>
         <AssistantPanel
-          open={right}
+          key={projectId}
+          projectId={projectId}
+          local={local}
+          onCitation={async citation => {
+            if (await flush()) {
+              setSourceId(citation.source_id);
+              setSourceLocation(citation.location);
+              setView("reader");
+            }
+          }}
+          open={right && view === "editor" && !focus}
           docked={docked}
           onOpenChange={setRight}
           onDockChange={setDocked}
           onSources={() => void showSources()}
           onUnavailable={unavailable}
         />
-      )}
+      </div>
       <nav className="mobile-nav" aria-label="Mobile workspace">
         <button
           onClick={() => {

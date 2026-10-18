@@ -23,6 +23,19 @@ function Test-Service([string]$Kind) {
         if ($Kind -eq 'backend') {
             $health = Invoke-RestMethod "$apiUrl/health" -TimeoutSec 3
             if ($health.service -ne 'thesa-documents') { return $false }
+            # A GET to the POST-only route must return 405. A 404 means an older backend is running.
+            try {
+                Invoke-WebRequest "$apiUrl/chat" -Method Get -UseBasicParsing -TimeoutSec 3 | Out-Null
+                return $false
+            } catch {
+                if (!$_.Exception.Response -or [int]$_.Exception.Response.StatusCode -ne 405) {
+                    return $false
+                }
+            }
+            $chatHealth = Invoke-RestMethod "$apiUrl/chat/health" -TimeoutSec 3
+            # This contract marker makes the launcher reject a backend that has
+            # the older chat validation behavior, even if its routes still exist.
+            if ($chatHealth.status -ne 'ok' -or $chatHealth.provider -ne 'gemini' -or $chatHealth.provider_fallbacks -ne $false -or $chatHealth.chat_contract -ne 'bounded-history-v2') { return $false }
             $response = Invoke-WebRequest "$apiUrl/parse" -Method Options -UseBasicParsing -TimeoutSec 3 -Headers @{
                 Origin = $appUrl
                 'Access-Control-Request-Method' = 'POST'
@@ -49,14 +62,14 @@ try {
     $Host.UI.RawUI.WindowTitle = 'Thesa - keep this window open'
     Write-Host 'Starting Thesa...' -ForegroundColor Cyan
     if (!(Test-Path $python) -or !(Test-Path $next)) {
-        throw "First-time setup is missing. Follow docs\SOURCE_UPLOADS.md to install the Python and frontend dependencies. After that, double-click Start Thesa.cmd for every run."
+        throw "First-time setup is missing. Follow docs\SOURCE_UPLOADS.md to install the Python and frontend dependencies. After that, double-click Start Thesa.bat for every run."
     }
     $node = (Get-Command node.exe -ErrorAction Stop).Source
     New-Item -ItemType Directory -Force -Path $logs | Out-Null
 
     if (Test-Port 8000) {
         if (!(Test-Service 'backend')) {
-            throw 'Port 8000 is in use by an incompatible or older service. Close its terminal and run this launcher again. The parser must allow http://127.0.0.1:3002.'
+            throw 'Port 8000 is serving an older or incompatible Thesa backend. Close the terminal/window that started the old backend (or press Enter in its Thesa launcher window), then run Start Thesa.bat again.'
         }
         Write-Host 'Document service already running.'
     } else {

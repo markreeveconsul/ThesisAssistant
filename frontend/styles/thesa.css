@@ -442,6 +442,14 @@ textarea {
   padding: 7px;
   border-radius: 8px;
 }
+.otto-consent { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; line-height: 1.5; margin-bottom: 12px; }
+.otto-footer label.otto-consent { display: flex; }
+.otto-consent input[type="checkbox"] { flex: 0 0 16px; width: 16px; height: 16px; margin-top: 3px; }
+.otto-answer { overflow-wrap: anywhere; margin: 10px 0 14px; }
+.otto-answer > p { margin: 0 0 8px; white-space: pre-wrap; }
+.otto-answer blockquote { margin: 12px 0 4px; padding: 8px 12px; border-left: 3px solid var(--accent, #087f5b); white-space: pre-wrap; }
+.otto-user-message { max-width: 88%; margin: 8px 0 12px auto; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px 14px 4px 14px; background: var(--canvas); overflow-wrap: anywhere; white-space: pre-wrap; }
+.otto-error { color: #b42318; }
 .otto-log {
   flex: 1;
   overflow: auto;
