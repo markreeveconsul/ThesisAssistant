@@ -41,17 +41,20 @@ A production build without Supabase fails closed by default. Set ALLOW_BROWSER_D
 
 ## Connect Supabase
 
-1. Create a new Supabase project and install/sign into its CLI.
-2. From the repository root:
+Follow [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md) to create or select the hosted project, set local Auth redirects, link the CLI and apply the migrations. The Supabase CLI is pinned in `frontend/package.json` so teammates use the same version.
+
+At a high level:
+
+1. Create a Supabase project and copy its project URL and **publishable** key into `frontend/.env.local`.
+2. From the repository root, authenticate/link the CLI and apply migrations:
    ~~~sh
-   supabase link --project-ref YOUR_PROJECT_REF
-   supabase db push
+   .\frontend\node_modules\.bin\supabase.cmd login
+   .\frontend\node_modules\.bin\supabase.cmd link --project-ref YOUR_PROJECT_REF
+   .\frontend\node_modules\.bin\supabase.cmd db push
    ~~~
-   Apply all three migrations, including the editor revision functions. Existing development SQLite data is not migrated.
-3. Set NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY and NEXT_PUBLIC_SITE_URL in frontend/.env.local.
-4. Configure exact Auth redirect URLs for /auth/callback (including password-recovery redirects), enable email confirmation and a minimum password length of 12, and set up production SMTP.
-5. Restart Next.js. The dashboard now requires a verified session and uses Postgres; browser drafts are not automatically imported into a cloud account.
-6. Verify signup, confirmation, login, recovery, two-user isolation and real cloud autosave against that hosted project before release.
+   This applies all three migrations, including the editor revision functions. Existing browser drafts are not migrated automatically.
+3. Configure the Auth redirect allow-list and email confirmation in the Supabase dashboard, then restart Next.js.
+4. Verify signup, confirmation, login, recovery, two-user isolation and cloud autosave against the hosted project before release.
 
 User-facing routes never use a service-role key. RLS is the final authorization boundary. Source uploads and direct source/project deletion remain denied until their validated processing/cleanup endpoints exist.
 
