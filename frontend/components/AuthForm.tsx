@@ -4,19 +4,25 @@ import Link from "next/link";
 import { Brand } from "./Brand";
 import { useActionState, useState } from "react";
 import { ArrowRight } from "lucide-react";
-import { authenticate } from "@/app/auth/actions";
+import { authenticate, signInWithGoogle } from "@/app/auth/actions";
 
 export function AuthForm({
   configured,
   recovery = false,
   linkError = false,
+  oauthError = false,
 }: {
   configured: boolean;
   recovery?: boolean;
   linkError?: boolean;
+  oauthError?: boolean;
 }) {
   const [mode, setMode] = useState(recovery ? "update" : "login");
   const [state, action, pending] = useActionState(authenticate, {});
+  const [googleState, googleAction, googlePending] = useActionState(
+    signInWithGoogle,
+    {},
+  );
   const title = {
     login: "Welcome back",
     signup: "Begin your next chapter.",
@@ -66,7 +72,15 @@ export function AuthForm({
           )}
           {linkError && (
             <p role="alert" className="error-text">
-              This sign-in link is invalid or expired. Please try again.
+              Sign-in could not be completed. Please try again. If it keeps
+              happening, check Supabase provider and callback settings.
+            </p>
+          )}
+          {oauthError && (
+            <p role="alert" className="error-text">
+              Google did not complete sign-in. Check that Google is enabled,
+              new user sign-ups are allowed, and your account is listed as a
+              test user if the consent screen is in testing mode.
             </p>
           )}
           <form action={action} className="stack">
@@ -125,13 +139,20 @@ export function AuthForm({
             </button>
           </form>
           {mode === "login" && (
-            <button
-              className="secondary google-login"
-              disabled
-              title="Google sign-in is not connected yet"
-            >
-              Continue with Google · coming soon
-            </button>
+            <form action={googleAction}>
+              {googleState.error && (
+                <p role="alert" className="error-text">
+                  {googleState.error}
+                </p>
+              )}
+              <button
+                className="secondary google-login"
+                disabled={!configured || googlePending}
+                type="submit"
+              >
+                {googlePending ? "Connecting…" : "Continue with Google"}
+              </button>
+            </form>
           )}
           {!recovery && (
             <div className="auth-links">

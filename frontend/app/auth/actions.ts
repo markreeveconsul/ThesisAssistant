@@ -84,6 +84,29 @@ export async function authenticate(
   }
   redirect("/");
 }
+
+export async function signInWithGoogle(
+  _: AuthState,
+  _formData: FormData,
+): Promise<AuthState> {
+  if (!getSupabaseConfig())
+    return { error: "Account access will be available after Supabase setup." };
+  const site = process.env.NEXT_PUBLIC_SITE_URL;
+  if (!site) return { error: "Google sign-in needs a configured site URL." };
+
+  const client = await createClient();
+  const { data, error } = await client.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: new URL("/auth/callback", site).toString() },
+  });
+  if (error || !data.url)
+    return {
+      error:
+        "Google sign-in is not enabled yet. Check the Google provider in Supabase Authentication settings.",
+    };
+  redirect(data.url);
+}
+
 export async function signOut() {
   const client = await createClient();
   await client.auth.signOut();

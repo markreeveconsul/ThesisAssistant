@@ -10,6 +10,7 @@ export default async function AuthPage({
     <AuthForm
       configured={!!getSupabaseConfig()}
       linkError={params.error === "link"}
+      oauthError={params.error === "oauth"}
     />
   );
 }
