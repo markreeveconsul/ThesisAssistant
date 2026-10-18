@@ -52,14 +52,14 @@ export function AssistantPanel({
       controller.current?.abort();
       setMessages([]);
       setStatus("Sources changed. Ask again to use the current library.");
-    });
+    }, local, projectId);
     return () => {
       stop();
       controller.current?.abort();
     };
   }, [projectId]);
   async function send() {
-    if (busy || !consent || !local || question.trim().length < 3) return;
+    if (busy || !consent || question.trim().length < 3) return;
     const abort = new AbortController();
     controller.current = abort;
     const currentQuestion = question.trim();
@@ -83,27 +83,34 @@ export function AssistantPanel({
     setError("");
     setStatus("Reading this project's sources…");
     try {
-      await askSources(projectId, currentQuestion, history, abort.signal, (event) => {
-        if (abort.signal.aborted) return;
-        if (event.type === "status") setStatus(event.message);
-        if (event.type === "answer" || event.type === "abstention")
-          setMessages((current) =>
-            current.map((message) =>
-              message.id === responseId
-                ? { ...message, content: event.message }
-                : message,
-            ),
-          );
-        if (event.type === "citation")
-          setMessages((current) =>
-            current.map((message) =>
-              message.id === responseId
-                ? { ...message, citations: [...message.citations, event.citation] }
-                : message,
-            ),
-          );
-        if (event.type === "done") setStatus("Response complete.");
-      });
+      await askSources(
+        projectId,
+        currentQuestion,
+        history,
+        abort.signal,
+        (event) => {
+          if (abort.signal.aborted) return;
+          if (event.type === "status") setStatus(event.message);
+          if (event.type === "answer" || event.type === "abstention")
+            setMessages((current) =>
+              current.map((message) =>
+                message.id === responseId
+                  ? { ...message, content: event.message }
+                  : message,
+              ),
+            );
+          if (event.type === "citation")
+            setMessages((current) =>
+              current.map((message) =>
+                message.id === responseId
+                  ? { ...message, citations: [...message.citations, event.citation] }
+                  : message,
+              ),
+            );
+          if (event.type === "done") setStatus("Response complete.");
+        },
+        local,
+      );
     } catch (e) {
       setMessages((current) => current.filter((message) => message.id !== responseId));
       setStatus("");
@@ -211,12 +218,6 @@ export function AssistantPanel({
                 </div>
               </>
             )}
-            {!local && (
-              <p>
-                Source chat is currently available only for local browser
-                drafts.
-              </p>
-            )}
             {messages.map((message) =>
               message.role === "user" ? (
                 <p className="otto-user-message" key={message.id}>
@@ -265,15 +266,16 @@ export function AssistantPanel({
               <input
                 type="checkbox"
                 checked={consent}
-                disabled={busy || !local}
+                disabled={busy}
                 onChange={(event) => setConsent(event.target.checked)}
               />
               Send extracted source chunks and my question to Google Gemini
               embeddings for search; send my question, recent chat context, and
-              the matching excerpts to Gemini chat. Files stay in this browser;
-              extracted text is processed by local FastAPI first. Google may
-              use free-tier prompts to improve its products. Avoid sensitive
-              thesis material.
+              the matching excerpts to Gemini chat. Files stay in {local
+                ? "this browser"
+                : "your private Supabase bucket"}; extracted text is processed
+              by local FastAPI first. Google may use free-tier prompts to
+              improve its products. Avoid sensitive thesis material.
             </label>
             <form
               className="otto-compose"
@@ -288,12 +290,12 @@ export function AssistantPanel({
                 value={question}
                 onChange={(event) => setQuestion(event.target.value)}
                 maxLength={2000}
-                disabled={busy || !local || !consent}
+                disabled={busy || !consent}
               />
               <button
                 type="submit"
                 disabled={
-                  busy || !local || !consent || question.trim().length < 3
+                  busy || !consent || question.trim().length < 3
                 }
                 aria-label="Send question"
               >

@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { getSource, listSources, type StoredSource } from "./sources";
+import {
+  getSourceContent,
+  listSources,
+  type SourceContent,
+} from "./sources";
 
 const citationSchema = z.object({
   source_id: z.string(),
@@ -46,19 +50,22 @@ export async function askSources(
   history: ChatTurn[],
   signal: AbortSignal,
   receive: (event: ChatEvent) => void,
+  local = true,
 ) {
-  const metadata = await listSources(projectId);
+  const metadata = await listSources(projectId, local);
   if (!metadata.length)
     throw new Error(
-      "No sources are uploaded for this project in this browser. Open the source library and upload a PDF, DOCX or TXT file first.",
+      local
+        ? "No sources are uploaded for this project in this browser. Open the source library and upload a PDF, DOCX or TXT file first."
+        : "No sources are uploaded for this project. Open the source library and add a PDF, DOCX or TXT file first.",
     );
   if (metadata.length > 50)
     throw new Error("This version supports up to 50 sources per question.");
-  const documents: StoredSource[] = [];
+  const documents: SourceContent[] = [];
   let characters = 0;
   for (const info of metadata) {
     signal.throwIfAborted();
-    const source = await getSource(projectId, info.id);
+    const source = await getSourceContent(projectId, info.id, local);
     if (!source)
       throw new Error("The source library changed. Retry your question.");
     characters += source.pages.reduce((sum, page) => sum + page.text.length, 0);

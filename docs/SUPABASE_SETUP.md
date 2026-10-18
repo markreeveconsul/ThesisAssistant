@@ -1,6 +1,6 @@
 # Supabase setup for Thesa
 
-Thesa already has Supabase Auth routes, project/chapter persistence, three SQL migrations, and row-level security tests. This guide connects a hosted Supabase project. Source uploads still use this browser's IndexedDB and the local FastAPI parser; they are not cloud-backed yet.
+Thesa has Supabase Auth routes, project/chapter persistence, SQL migrations, and row-level security tests. Signed-in projects can store source files in a private Supabase bucket. Browser draft mode continues to use IndexedDB. Both modes use the local FastAPI parser for document extraction.
 
 ## 1. Create or choose a Supabase project
 
@@ -54,7 +54,7 @@ From the repository root in PowerShell, sign the CLI into your Supabase account,
 .\frontend\node_modules\.bin\supabase.cmd db push
 ~~~
 
-Find the project reference ID in the dashboard URL: `https://supabase.com/dashboard/project/YOUR_PROJECT_REF`. The CLI login opens a browser. Linking may prompt for the database password; enter it in the terminal prompt, not in chat. Review the migration list before accepting the push. The migrations create the profile/project/chapter/source metadata tables, private storage buckets, owner-scoped RLS policies, and atomic editor functions.
+Find the project reference ID in the dashboard URL: `https://supabase.com/dashboard/project/YOUR_PROJECT_REF`. The CLI login opens a browser. Linking may prompt for the database password; enter it in the terminal prompt, not in chat. Review the migration list before accepting the push. The migrations create the profile/project/chapter/source metadata tables, private storage buckets, owner-scoped RLS policies, atomic editor functions, and cloud source ingestion functions. The latest migration, `202610190001_cloud_sources.sql`, enables PDF, DOCX and TXT uploads for signed-in projects. Apply it before using cloud imports.
 
 The CLI is pinned as a development dependency in `frontend/package.json`; after cloning, install dependencies with `cd frontend` then `npm ci`, and return to the repository root to run the commands above. The `supabase/.temp/` CLI state is ignored by Git.
 
@@ -62,4 +62,4 @@ The CLI is pinned as a development dependency in `frontend/package.json`; after 
 
 Restart Next.js after changing `.env.local`. Open Thesa, create an account, confirm the email, sign in, create a project and a chapter, then reload and confirm they remain. Run `npm test` from `frontend` to exercise the checked-in schema and RLS policies in PGlite.
 
-Existing browser drafts are not imported into the cloud automatically. Cloud file upload, source parsing and embedding storage are separate follow-up work; do not expect existing local source files to appear in Supabase yet.
+Existing browser drafts are not imported into the cloud automatically. To use cloud imports, restart Thesa with the local FastAPI parser running, sign in, open a project's Sources page, and upload a PDF, DOCX or TXT file. The original file is stored in the private `sources` bucket; extracted page/paragraph/line text is stored in the owner-protected `sources` and `source_pages` tables. Uploads remain limited to 25 MB per file and 300 PDF pages. Scanned PDFs are detected and warned about; OCR is not included. Embeddings and AI retrieval are separate from source import.

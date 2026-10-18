@@ -10,9 +10,9 @@ A thesis-writing workspace built with Next.js, Tiptap and Supabase, with a local
 - Chapter creation, renaming, switching, drag ordering and keyboard-accessible reorder controls.
 - Debounced serialized autosave with visible states, revision conflicts, tab recovery and JSON chapter backup downloads.
 - Focus mode, floating/docked Otto panel, command palette, mobile reading/editing, light/dark themes. Ctrl/⌘ K toggles Otto; Ctrl/⌘ Shift K opens commands. Escape closes Otto or exits focus mode.
-- Supabase auth routes, user-isolated schema and storage policies. Hosted auth and cloud saves still require account setup.
+- Supabase auth routes, user-isolated schema and private storage policies. The existing project needs the latest source-ingestion migration before cloud imports work.
 
-**Source uploads and reading work for browser drafts.** PDF/DOCX/TXT files are parsed by a local Python/FastAPI service and saved in IndexedDB. The reader supports original PDF rendering, page navigation, zoom, text search and original-file download. Source deletion removes the stored file and extracted text. See [source setup and limits](docs/SOURCE_UPLOADS.md).
+**Source uploads and reading work for browser drafts and signed-in cloud projects.** PDF/DOCX/TXT files are parsed by the local Python/FastAPI service. Browser drafts save in IndexedDB; signed-in sources save in the private Supabase bucket with owner-checked database functions. The reader supports original PDF rendering, page navigation, zoom, text search and original-file download. See [source setup and limits](docs/SOURCE_UPLOADS.md).
 
 **Otto source chat is a local preview.** After [AI setup](docs/AI_SETUP.md), Otto uses semantic plus keyword search over the selected project's sources, then Gemini writes a conversational answer grounded in retrieved passages. Follow-up questions use a short in-memory chat context, and each answer shows the original quotation with a clickable file/page location. Unsupported questions abstain; provider errors stay explicit. Chat is not saved, and citation insertion, notes and DOCX/PDF export remain pending.
 
@@ -52,17 +52,17 @@ At a high level:
    .\frontend\node_modules\.bin\supabase.cmd link --project-ref YOUR_PROJECT_REF
    .\frontend\node_modules\.bin\supabase.cmd db push
    ~~~
-   This applies all three migrations, including the editor revision functions. Existing browser drafts are not migrated automatically.
+   This applies all four migrations, including private source storage and the editor revision functions. Existing browser drafts are not migrated automatically.
 3. Configure the Auth redirect allow-list and email confirmation in the Supabase dashboard, then restart Next.js.
 4. Verify signup, confirmation, login, recovery, two-user isolation and cloud autosave against the hosted project before release.
 
-User-facing routes never use a service-role key. RLS is the final authorization boundary. Source uploads and direct source/project deletion remain denied until their validated processing/cleanup endpoints exist.
+User-facing routes never use a service-role key. RLS and owner-checked source RPCs protect cloud files and extracted text. The local FastAPI parser is for local development; a hosted deployment still needs an authenticated, reachable parser service.
 
 ## Deploy to Vercel
 
 Choose frontend as the root directory, Next.js framework, npm ci and npm run build. Configure the public Supabase variables and deployed site origin in the appropriate environment. Use a separate Supabase project for destructive preview testing.
 
-No Vercel or hosted Supabase deployment has been performed; the user deferred account setup. Local database-policy tests do not establish that hosted auth/email/storage works.
+No Vercel deployment has been performed. Local database-policy tests do not establish that hosted auth/email/storage HTTP APIs work.
 
 ## Environment
 
@@ -116,7 +116,7 @@ The original C:\Users\Admin\thesis-assistant checkout is unchanged. Work is in t
 - Footnotes currently use linked dagger markers and an end-of-chapter list. Final export/pagination is not implemented.
 - Browser backups are per chapter; bulk import/export and cloud draft migration are not implemented.
 - Large-document performance and full assistive-technology review remain final-MVP checks.
-- Source uploads currently use browser-local storage and a loopback parser. Authenticated cloud uploads and durable background ingestion remain pending.
+- Browser drafts store sources in IndexedDB; signed-in cloud projects store originals privately in Supabase. Both currently use the local loopback parser; hosted parsing and durable background ingestion remain pending.
 - Then: grounded assistant, selected-text/RRL review, accepted suggestions, bibliography, notes and exports.
 
 No OCR, collaboration, sharing, paper discovery, plagiarism checks or unverifiable alignment/AI-detection percentages are included.

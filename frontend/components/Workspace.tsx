@@ -74,9 +74,8 @@ export function Workspace({
   useEffect(() => {
     let alive = true;
     async function refresh() {
-      if (!local) return;
       try {
-        const items = await listSources(projectId);
+        const items = await listSources(projectId, local);
         if (alive) {
           setSources(items);
           setSourceError("");
@@ -91,7 +90,7 @@ export function Workspace({
       }
     }
     void refresh();
-    const stop = watchSources(() => void refresh());
+    const stop = watchSources(() => void refresh(), local, projectId);
     return () => {
       alive = false;
       stop();

@@ -2,7 +2,7 @@
 
 ## Status
 
-This document separates implemented foundation from planned pipeline. Milestones 1–2 use Next.js App Router, strict TypeScript, Tailwind CSS, Radix Dialog, self-hosted fonts and Supabase SSR. The Tiptap editor and browser-draft ingestion are implemented. Otto's local source-question preview now uses Gemini embeddings for semantic retrieval and Gemini chat to select validated source quotations. Account setup and Vercel deployment remain deferred.
+This document separates implemented foundation from planned pipeline. The app uses Next.js App Router, strict TypeScript, Tailwind CSS, Radix Dialog, self-hosted fonts and Supabase SSR. The Tiptap editor, browser-draft ingestion and authenticated source storage are implemented. Otto's local source-question preview uses Gemini embeddings for semantic retrieval and Gemini chat to select validated source quotations. The user has configured Supabase; live auth/storage verification and Vercel deployment remain.
 
 The existing Git history was imported into the previously empty SisAssist workspace. The original thesis-assistant checkout remains unchanged. The legacy Python API routes remain disconnected. The active document_service reuses the bounded Python parser without importing Ollama or vector-store code. See SOURCE_UPLOADS.md for the implemented local storage and request boundaries.
 
@@ -19,28 +19,28 @@ When public Supabase variables are absent, development mode offers explicitly la
 - profiles: owner is auth.users.id; private preferences.
 - projects: owner, title, research problem, bibliography style, starting structure, revision, timestamps, deletion tombstone.
 - sections: project-owned editor JSON, title/order, parent, revision. Composite parent/project foreign key blocks cross-project hierarchy links.
-- sources: server-controlled upload reservation, immutable storage path, status, PDF metadata, deletion tombstone.
-- source_pages: project/source composite FK, physical page, extracted text and position mapping.
+- sources: owner-checked upload reservation, immutable storage path, checksum, format, status, extraction warning and deletion tombstone.
+- source_pages: project/source composite FK, one-based location, locator type and extracted text.
 - notes: project-owned rich content.
 - jobs: project-owned status, checkpoint, lease and retries. Browser read-only.
 
-Every application table has ENABLE and FORCE ROW LEVEL SECURITY. Browser grants are explicit. Project owner/tombstone fields and all ingestion fields are not client-updatable. Project/source deletion has no direct browser grant; later workers will coordinate storage cleanup before final row deletion.
+Every application table has ENABLE and FORCE ROW LEVEL SECURITY. Browser grants are explicit. Project owner/tombstone fields and ingestion fields are not client-updatable. Source lifecycle writes use owner-checked SECURITY DEFINER functions; source deletion removes its private object before cascading metadata and extracted locations.
 
-private.owns_project is SECURITY INVOKER with a fixed empty search path. It requires both the authenticated owner and an active project. Profiles/sections/notes have owner-limited mutations; source/pages/jobs are read-only for authenticated callers.
+private.owns_project is SECURITY INVOKER with a fixed empty search path. It requires both the authenticated owner and an active project. Profiles/sections/notes have owner-limited mutations; sources and pages are read-only to direct authenticated table requests. Source RPCs separately validate the active project owner.
 
 Private buckets: sources, assets, exports. A source upload requires a reserved source row owned by the user and the exact storage path. No source overwrite policy. Assets and exports are deny-by-default until dedicated metadata/lifecycle policies exist. No public URLs.
 
-## Implemented local ingestion and remaining cloud plan
+## Implemented source ingestion
 
-Browser files -> loopback FastAPI validation -> time-limited Python parser process -> extracted locations -> atomic IndexedDB metadata/file/text save -> project-scoped source library and PDF.js/text reader. During a source question, the local backend batches Gemini embedding requests and keeps vectors in a bounded process-memory cache. No source text or vector is persistently stored by this preview. Authenticated cloud-mode uploads remain disabled.
+Browser files -> loopback FastAPI validation -> time-limited Python parser process -> extracted locations -> (browser draft: atomic IndexedDB save) or (cloud: owner-checked reservation RPC -> private Supabase Storage upload -> completion RPC writes validated locations) -> project-scoped source library and PDF.js/text reader. The upload uses the authenticated browser session and public publishable key; no service-role key is sent to the browser. Apply `202610190001_cloud_sources.sql` to existing Supabase projects before using cloud imports.
 
-The older cloud-ingestion proposal below is not implemented and must be revised around the agreed Python/FastAPI backend before deployment.
+The local parser is limited to a development machine's loopback interface. A Vercel deployment cannot reach that parser, so hosted use still needs an authenticated, reachable parsing service.
 
-## Earlier cloud ingestion proposal
+## Planned indexing and hosted ingestion
 
-Authorize/reserve → signed direct browser upload to Storage → verify stored object size and signature → durable Supabase queue → bounded Vercel Node worker → extract page batches → token chunks with overlap → batched hosted open-weight embeddings → pgvector index → ready.
+For hosted operation, authorize the user/project → upload to private storage → authenticated parser/worker extracts pages → chunk and embed → store vectors with project/source filters. The current local cloud path stores the original and extracted page text but does not create embeddings or chunks.
 
-Use page/extraction checkpoints, stable chunk IDs, idempotent upserts, leases, bounded retries and a scheduled dispatcher. A browser closing or a Vercel invocation timing out must not lose a job. Jobs check deletion generation/state before committing, preventing source resurrection. Storage and database updates are not one distributed transaction.
+The hosted pipeline should use page/extraction checkpoints, stable chunk IDs, idempotent upserts, leases, bounded retries and a scheduled dispatcher. A browser closing or a Vercel invocation timing out must not lose a job. Jobs must check deletion state before committing, preventing source resurrection. Storage and database updates are not one distributed transaction.
 
 Plan 25 MB and 300 physical pages initially. Detect corrupt, encrypted, empty, scanned and partially scanned PDFs. Preserve position mappings and distinguish physical page index from printed page label. Multi-page chunk evidence must map to exact supporting pages. Progress reports actual stages/counts, not invented percentages.
 

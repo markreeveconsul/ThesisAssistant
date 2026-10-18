@@ -1,10 +1,12 @@
 # Source uploads and reader
 
-This slice implements non-AI uploads for the current **browser-draft workspace**. It does not create a second account system or silently send documents to a hosted provider.
+PDF, DOCX and UTF-8 TXT imports are parsed by the local Python/FastAPI document service. Browser-draft projects save original files and extracted text in IndexedDB. Signed-in projects save originals in a private Supabase Storage bucket and extracted locations in owner-protected Supabase tables.
 
-## Run
+## Start the local parser
 
-Python 3.11+ and the existing Node.js setup are required. In a terminal at the repository root:
+On Windows, finish the one-time Python setup described below, then double-click **Start Thesa.bat**. It starts the frontend and document parser together at `http://127.0.0.1:3002`.
+
+For manual setup, Python 3.11+ and Node.js are required. From the repository root:
 
 ```powershell
 cd backend
@@ -14,7 +16,7 @@ Copy-Item .env.example .env
 .\.venv\Scripts\python.exe -m uvicorn document_service.main:app --host 127.0.0.1 --port 8000
 ```
 
-On macOS/Linux use `.venv/bin/python` instead. Leave the backend running. In another terminal:
+In another terminal:
 
 ```powershell
 cd frontend
@@ -22,31 +24,42 @@ npm ci
 npm run dev -- --port 3001
 ```
 
-Set `NEXT_PUBLIC_DOCUMENT_API_URL=http://127.0.0.1:8000` in the frontend environment if changing the default. Restart Next.js after changing public environment variables. The backend reads optional `backend/.env`; defaults work without copying it. No Ollama, API keys, embeddings, database service, or AI provider is required.
+Set `NEXT_PUBLIC_DOCUMENT_API_URL=http://127.0.0.1:8000` in the frontend environment only if changing the default. Restart Next.js after changing public environment variables. The backend reads optional `backend/.env`; defaults work without copying it. No Ollama, API key, embedding model, or separate database service is needed for importing and reading sources.
 
-## User flow
+## Enable cloud source imports
 
-The parser permits local frontend ports 3000, 3001, 3002 and the test port 3012, using either `localhost` or `127.0.0.1`. For another port, add its exact origin to `DOCUMENT_ALLOWED_ORIGINS` in `backend/.env` and restart FastAPI. A rejected browser origin can appear as a connection error even when the parser is running.
+For an existing Supabase project, apply the pending migration from the repository root after linking this checkout to that project:
 
-Open a project, choose **Upload sources**, and select or drop PDF, DOCX or UTF-8 TXT files. The queue accepts up to 10 files and processes them sequentially. It reports real stages, success counts, per-file errors and cancellation. Choose a file again to retry a failure.
+```powershell
+.\frontend\node_modules\.bin\supabase.cmd db push
+```
 
-- Defaults: 25 MB per file, 300 PDF pages, 2 million extracted characters, 10,000 extracted locations, 50 MB expanded DOCX content.
-- PDF locations are physical, one-based pages, which can differ from printed page labels. Blank pages are retained. Fully image-only PDFs are rejected with an OCR explanation; mixed PDFs retain readable pages and show a warning. OCR is not implemented.
-- DOCX locations are extracted paragraphs; table rows count as paragraphs. Headers, footers, text boxes and layout pagination are not reconstructed. TXT locations retain original line numbers, including gaps from blank lines. Neither is described as a physical page.
-- The reader renders original PDF pages with PDF.js, supports page navigation and zoom, and shows accessible extracted text. DOCX/TXT show text rather than a facsimile. Text search moves between matching locations; it does not search image pixels.
-- Original files can be downloaded. Copying text includes its filename and location; it does not insert or validate a citation in the manuscript.
-- Duplicate file content is rejected within a project, including renamed files. The same file may be used in another project.
-- Deleting a source requires confirmation and atomically removes its metadata, original Blob and extracted text from browser storage. No embeddings or chunks exist in this slice.
+This records the migration in Supabase's migration history. The latest migration, `202610190001_cloud_sources.sql`, adds source checksums, formats, warnings, page locator types, DOCX/TXT bucket MIME types, owner-checked database functions, and a private Storage deletion policy. It does not require a service-role key.
 
-## Storage and security boundary
+For a new project, `db push` applies all migrations; for an already-linked project, it applies only pending migrations. Then restart Thesa and use `http://127.0.0.1:3002`. The launcher starts the local parser automatically. Cloud uploads store the original file and extracted locations in Supabase; browser drafts continue to store source data only on that device.
 
-The source catalogue and documents live in IndexedDB (`thesa-sources-v1`), with project-filtered metadata and compound project/hash uniqueness. The existing localStorage manuscript data remains unchanged. Source metadata and document data are saved/deleted together in a transaction; quota failure cannot leave a half-saved source. Other tabs refresh via BroadcastChannel. Keep original files: clearing browser data removes this library, and chapter JSON backups do not include sources.
+## Import behavior
 
-Project filtering is **not authenticated per-user isolation**. Browser drafts and files are visible to anyone using that browser profile. Cloud-mode source uploads are explicitly disabled until authenticated storage is integrated.
+Choose **Upload sources** and select or drop files. The queue accepts up to 10 files at a time and processes them sequentially. It shows progress, per-file errors, completion counts, and cancellation. Choose a failed file again to retry it.
 
-The browser sends the file to the configured local FastAPI `/parse` endpoint. The service validates the extension, PDF/DOCX signature, byte cap and allowed local origin. A disposable subprocess performs parsing under a hard timeout. Temporary files and extracted results are removed after success/failure; no source is retained on the backend. Two concurrent parse requests are allowed, with excess requests rejected for retry. Text is rendered as text, not HTML or instructions.
+- Maximum 25 MB per file, 300 PDF pages, 2 million extracted characters, 10,000 extracted locations, and 50 MB expanded DOCX content.
+- PDF locators are physical, one-based pages, which may differ from printed labels. Blank pages are retained. Image-only PDFs are rejected with an OCR explanation; mixed PDFs retain readable pages and warn about textless pages. OCR is out of scope.
+- DOCX locators are extracted paragraphs; table rows count as paragraphs. Headers, footers, text boxes and pagination are not reconstructed.
+- TXT locators preserve original line numbers, including gaps from blank lines.
+- The reader renders PDF pages with PDF.js, supports page navigation, zoom, and text search, and shows accessible extracted text. DOCX/TXT are shown as text, not facsimiles. Search does not inspect image pixels.
+- The original file can be downloaded. Deletion requires confirmation and removes its stored original and extracted locations.
+- Duplicate file content is rejected within a project, including renamed files. The same file can be used in another project.
+- Source chunks, embeddings, and AI summaries are not created by this import pipeline.
 
-The service binds to loopback in the documented commands and rejects non-loopback clients, unexpected Host headers and uploads without an allowed Origin. It is a local development service, not a public authenticated file API. Do not proxy or publish it as-is. Hosted FastAPI deployment needs verified user identity, project authorization, quotas/rate limits, durable private object storage and deletion lifecycle integration before cloud uploads are enabled.
+## Storage and deployment boundary
+
+Browser-draft source data lives in IndexedDB (`thesa-sources-v1`) and disappears if browser data is cleared. Browser-draft project filtering is not authenticated per-user isolation; files are visible to anyone using that browser profile.
+
+Cloud source files live in a private Supabase bucket. Metadata and extracted text use RLS-protected tables. Upload reservation, completion, cancellation, and deletion use owner-checked RPCs; browser clients never receive a service-role key. Thesa checksums files to catch duplicates and validates the parser response before saving it.
+
+The parser binds to loopback and rejects non-loopback clients, unexpected Host headers and unapproved local origins. It uses a disposable process with a hard timeout, and does not keep parser temp files after a request. This is a local development service, not a public authenticated upload API. Local cloud imports require the user to run the provided launcher, which starts the parser.
+
+A Vercel deployment cannot reach a user's `127.0.0.1`. Hosted use still needs a separately deployed parser with verified user identity, project authorization, quotas and rate limits. The current hosted deployment path has not been completed or tested.
 
 ## Verification
 
@@ -59,4 +72,4 @@ npm run test:e2e
 npm run build
 ```
 
-Playwright starts its own real FastAPI service on port 8012 and generates test files under ignored `frontend/.source-test-fixtures/`. The frontend test server uses port 3012. Install the Python environment before running browser tests. Tests cover actual PDF/DOCX/TXT parsing, scan/encryption/corruption/limits, local request boundaries, offline retry, PDF rendering, project filtering, reload persistence and deletion of both stored blobs and extracted data. Browser contexts are isolated from real drafts.
+Playwright starts an isolated FastAPI service on port 8012 and a frontend on port 3012. Tests cover PDF/DOCX/TXT extraction, scanned/corrupt/oversized files, offline retry, PDF reading, browser persistence, project separation and local storage cleanup. PGlite executes the SQL migrations to test owner isolation and cloud source functions; it substitutes for Supabase's managed HTTP Auth/Storage services, which are not called by unit tests.
