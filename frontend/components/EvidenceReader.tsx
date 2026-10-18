@@ -50,13 +50,13 @@ export function EvidenceReader({
   useEffect(() => {
     let alive = true;
     async function refresh() {
-      if (!sourceId || !local) {
+      if (!sourceId) {
         setSource(null);
         setLoading(false);
         return;
       }
       try {
-        const value = await getSource(projectId, sourceId);
+        const value = await getSource(projectId, sourceId, local);
         if (alive) {
           setSource(value);
           if (initialLocation !== undefined && value) {
@@ -83,7 +83,7 @@ export function EvidenceReader({
     setZoom(1);
     setQuery("");
     void refresh();
-    const stop = watchSources(() => void refresh());
+    const stop = watchSources(() => void refresh(), local, projectId);
     return () => {
       alive = false;
       stop();

@@ -33,7 +33,7 @@ export function SourceLibrary({
   const detail = sources.find((source) => source.id === selected) ?? sources[0];
   useEffect(() => () => operation.current?.abort(), []);
   async function upload(files: File[]) {
-    if (busy || !local || !files.length) return;
+    if (busy || !files.length) return;
     if (files.length > 10) {
       setErrors(["Choose at most 10 files at a time."]);
       return;
@@ -52,6 +52,7 @@ export function SourceLibrary({
           file,
           controller.signal,
           (text) => setStage(`${file.name}: ${text}`),
+          local,
         );
         setSelected(source.id);
         successes++;
@@ -77,7 +78,7 @@ export function SourceLibrary({
         </h1>
         <button
           className="primary"
-          disabled={!local || busy}
+          disabled={busy}
           onClick={() => input.current?.click()}
         >
           <Upload size={16} />
@@ -91,7 +92,7 @@ export function SourceLibrary({
         aria-label="Choose source files"
         accept=".pdf,.docx,.txt"
         multiple
-        disabled={!local || busy}
+        disabled={busy}
         onChange={(event) => {
           void upload(Array.from(event.target.files ?? []));
           event.target.value = "";
@@ -100,7 +101,7 @@ export function SourceLibrary({
       <p className="source-storage-note">
         {local
           ? "Sources are stored only in this browser on this device. Keep your original files; clearing browser data removes this library."
-          : "Source uploads currently support browser drafts only. Authenticated cloud source storage is not connected yet."}
+          : "Sources are stored in your private Supabase project bucket and linked to this account. Keep your original files as a backup."}
       </p>
       {storageError && (
         <p className="error-text" role="alert">
@@ -138,7 +139,7 @@ export function SourceLibrary({
         <section className="source-list" aria-label="Uploaded sources">
           <button
             className="source-dropzone"
-            disabled={!local || busy}
+            disabled={busy}
             onClick={() => input.current?.click()}
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => {
@@ -213,8 +214,9 @@ export function SourceLibrary({
                       aria-label={`Confirm deletion of ${source.filename}`}
                     >
                       <p>
-                        Remove this source, its stored file, and extracted text
-                        from this browser? Your manuscript stays unchanged.
+                        {local
+                          ? "Remove this source, its stored file, and extracted text from this browser? Your manuscript stays unchanged."
+                          : "Remove this source, its private cloud file, and extracted text? Your manuscript stays unchanged."}
                       </p>
                       <button
                         className="secondary"
@@ -226,7 +228,7 @@ export function SourceLibrary({
                         className="secondary"
                         onClick={async () => {
                           try {
-                            await deleteSource(projectId, source.id);
+                            await deleteSource(projectId, source.id, local);
                             setRemoving(undefined);
                             setMessage("Source and extracted text removed.");
                           } catch (error) {
@@ -266,7 +268,7 @@ export function SourceLibrary({
                 </div>
                 <div>
                   <dt>Storage</dt>
-                  <dd>This browser only</dd>
+                  <dd>{local ? "This browser only" : "Private cloud bucket"}</dd>
                 </div>
               </dl>
               {detail.warning && (

@@ -41,6 +41,7 @@ beforeAll(async () => {
     "202610110001_foundation.sql",
     "202610110002_storage.sql",
     "202610110003_editor.sql",
+    "202610190001_cloud_sources.sql",
   ]) {
     await db.exec(
       readFileSync(resolve("../supabase/migrations", file), "utf8"),
@@ -242,6 +243,108 @@ describe("executed PostgreSQL ownership policies", () => {
         (await db.query("delete from storage.objects returning id")).rows,
       ).toEqual([]);
     });
+  });
+  it("reserves, completes, and deletes cloud sources only for the project owner", async () => {
+    const functionModes = await db.query<{
+      schema_name: string;
+      function_name: string;
+      security_definer: boolean;
+    }>(
+      `select n.nspname as schema_name, p.proname as function_name,
+              p.prosecdef as security_definer
+       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where p.proname in ('reserve_source','complete_source','cancel_source','delete_source')`,
+    );
+    const publicFunctions = functionModes.rows.filter(
+      (row) => row.schema_name === "public",
+    );
+    const privateFunctions = functionModes.rows.filter(
+      (row) => row.schema_name === "private",
+    );
+    expect(publicFunctions).toHaveLength(4);
+    expect(publicFunctions.every((row) => !row.security_definer)).toBe(true);
+    expect(privateFunctions).toHaveLength(4);
+    expect(privateFunctions.every((row) => row.security_definer)).toBe(true);
+
+    const checksum = "a".repeat(64);
+    const pages = [
+      { page_number: 1, locator_type: "line", text: "First note" },
+      { page_number: 3, locator_type: "line", text: "Third note" },
+    ];
+    const sourceId = await asUser(A, async () => {
+      const reserved = await db.query<{
+        source_id: string;
+        storage_path: string;
+      }>(
+        "select * from public.reserve_source($1,$2,$3,$4,$5)",
+        [PA, "notes.txt", 120, checksum, "txt"],
+      );
+      const { source_id, storage_path } = reserved.rows[0];
+      expect(storage_path).toBe(`${A}/${PA}/${source_id}/notes.txt`);
+      await db.query(
+        "insert into storage.objects(bucket_id,name) values ('sources',$1)",
+        [storage_path],
+      );
+      await db.query("select public.complete_source($1,$2::jsonb,$3)", [
+        source_id,
+        JSON.stringify(pages),
+        null,
+      ]);
+      const completed = await db.query<{
+        status: string;
+        page_count: number;
+      }>("select status,page_count from public.sources where id=$1", [
+        source_id,
+      ]);
+      expect(completed.rows[0]).toEqual({ status: "ready", page_count: 2 });
+      const extracted = await db.query<{ locator_type: string; text: string }>(
+        "select locator_type,text from public.source_pages where source_id=$1 order by page_number",
+        [source_id],
+      );
+      expect(extracted.rows).toEqual([
+        { locator_type: "line", text: "First note" },
+        { locator_type: "line", text: "Third note" },
+      ]);
+      return source_id;
+    });
+
+    await asUser(B, async () => {
+      await expect(
+        db.query("select * from public.reserve_source($1,$2,$3,$4,$5)", [
+          PA,
+          "forged.pdf",
+          100,
+          "b".repeat(64),
+          "pdf",
+        ]),
+      ).rejects.toThrow(/Project unavailable/);
+      await expect(
+        db.query("select public.delete_source($1)", [sourceId]),
+      ).resolves.toBeDefined();
+    });
+    expect(
+      (await db.query("select id from public.sources where id=$1", [sourceId]))
+        .rows,
+    ).toHaveLength(1);
+
+    await asUser(A, async () => {
+      const { rows: storageRows } = await db.query<{ name: string }>(
+        "select name from storage.objects where name like $1",
+        [`%/${sourceId}/notes.txt`],
+      );
+      await db.query("delete from storage.objects where name=$1", [
+        storageRows[0].name,
+      ]);
+      await db.query("select public.delete_source($1)", [sourceId]);
+    });
+    expect(
+      (await db.query("select id from public.sources where id=$1", [sourceId]))
+        .rows,
+    ).toHaveLength(0);
+    expect(
+      (await db.query("select id from public.source_pages where source_id=$1", [sourceId]))
+        .rows,
+    ).toHaveLength(0);
   });
   it("keeps assets and exports denied until their lifecycle is implemented", async () => {
     await asUser(A, async () => {
