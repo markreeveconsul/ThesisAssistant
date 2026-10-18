@@ -1,6 +1,6 @@
 # Thesa
 
-A thesis-writing workspace built with Next.js, Tiptap and Supabase, with hosted open-weight research assistance planned next. The current design adapts the approved Thesa UI source: emerald accents, rounded controls, Manrope interface text, a serif manuscript, Otto illustrations, and chapters/sources beside the editor.
+A thesis-writing workspace built with Next.js, Tiptap and Supabase, with a local-preview Gemini source assistant. The current design adapts the approved Thesa UI source: emerald accents, rounded controls, Manrope interface text, a serif manuscript, Otto illustrations, and chapters/sources beside the editor.
 
 ## What works now
 
@@ -12,11 +12,15 @@ A thesis-writing workspace built with Next.js, Tiptap and Supabase, with hosted 
 - Focus mode, floating/docked Otto panel, command palette, mobile reading/editing, light/dark themes. Ctrl/⌘ K toggles Otto; Ctrl/⌘ Shift K opens commands. Escape closes Otto or exits focus mode.
 - Supabase auth routes, user-isolated schema and storage policies. Hosted auth and cloud saves still require account setup.
 
-**Source uploads and reading work for browser drafts.** PDF/DOCX/TXT files are parsed by a local Python/FastAPI service and saved in IndexedDB. The reader supports original PDF rendering, page navigation, zoom, text search and original-file download. Source deletion removes the stored file and extracted text. See [source setup and limits](docs/SOURCE_UPLOADS.md). AI chat, summaries, citation insertion, notes and DOCX/PDF export remain pending.
+**Source uploads and reading work for browser drafts.** PDF/DOCX/TXT files are parsed by a local Python/FastAPI service and saved in IndexedDB. The reader supports original PDF rendering, page navigation, zoom, text search and original-file download. Source deletion removes the stored file and extracted text. See [source setup and limits](docs/SOURCE_UPLOADS.md).
+
+**Otto source chat is a local preview.** After [AI setup](docs/AI_SETUP.md), Otto uses semantic plus keyword search over the selected project's sources, then Gemini writes a conversational answer grounded in retrieved passages. Follow-up questions use a short in-memory chat context, and each answer shows the original quotation with a clickable file/page location. Unsupported questions abstain; provider errors stay explicit. Chat is not saved, and citation insertion, notes and DOCX/PDF export remain pending.
+
+This Gemini trial uses a hosted proprietary model and does not meet the original open-source AI requirement. Free-tier quotas still apply, and Google may use free-tier prompts to improve its products; use synthetic or non-sensitive material while evaluating it.
 
 ## Run locally
 
-**Windows shortcut:** after the one-time dependency setup in [SOURCE_UPLOADS.md](docs/SOURCE_UPLOADS.md), double-click **Start Thesa.cmd** in the repository root. It starts the frontend and document parser, then opens `http://127.0.0.1:3002`. No terminal commands are needed for subsequent runs. Keep its status window open; press Enter there to stop the services it started. Existing compatible services are reused and left running. Diagnostic logs are in ignored `.thesa-run/`.
+**Windows shortcut:** after the one-time dependency setup in [SOURCE_UPLOADS.md](docs/SOURCE_UPLOADS.md), double-click **Start Thesa.bat** in the repository root. It starts the frontend and document parser, then opens `http://127.0.0.1:3002`. No terminal commands are needed for subsequent runs. Keep its status window open; press Enter there to stop the services it started. Existing compatible services are reused and left running. Diagnostic logs are in ignored `.thesa-run/`. The older `Start Thesa.cmd` also remains compatible.
 
 Browser drafts are tied to the exact address: `localhost`, `127.0.0.1` and different ports have separate storage. The launcher consistently uses `127.0.0.1:3002`; it does not move drafts from another address.
 
@@ -67,11 +71,12 @@ See frontend/.env.example (copy to frontend/.env.local; Next.js does not read th
 | NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY | Hosted database/auth configuration |
 | ALLOW_BROWSER_DRAFTS | Explicit opt-in for unauthenticated browser drafts in a production demonstration build; false by default |
 | SUPABASE_SERVICE_ROLE_KEY | Future worker credential, server-only; unused in current user routes |
-| AI_CHAT_BASE_URL / AI_CHAT_API_KEY / AI_CHAT_MODEL | Future open-weight chat configuration |
-| AI_EMBED_BASE_URL / AI_EMBED_API_KEY / AI_EMBED_MODEL / AI_EMBED_DIMENSIONS | Future versioned embedding configuration |
+| GEMINI_API_KEY / GEMINI_API_BASE_URL | Backend-only Gemini API key and API base URL |
+| AI_CHAT_MODEL / AI_EMBED_MODEL | Swap chat and embedding model IDs without code changes |
+| AI_EMBED_DIMENSIONS / AI_RETRIEVAL_MIN_SCORE | Embedding vector size and semantic match threshold |
 | MAX_UPLOAD_MB / MAX_PDF_PAGES | Planned ingestion caps: 25 MB / 300 pages |
 
-AI variables are reserved for later milestones; no model requests happen yet.
+The active Python AI adapter reads the Gemini settings from **backend/.env**. Never put the key in frontend variables or commit it. See [AI_SETUP.md](docs/AI_SETUP.md) for setup, privacy and quota details.
 
 ## Tests
 

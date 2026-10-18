@@ -2,7 +2,7 @@
 
 ## Status
 
-This document separates implemented foundation from planned pipeline. Milestones 1–2 use Next.js App Router, strict TypeScript, Tailwind CSS, Radix Dialog, self-hosted fonts and Supabase SSR. The Tiptap editor is implemented; browser-draft ingestion now runs through the local FastAPI document service; inference is not connected yet. Account setup and Vercel deployment were explicitly deferred by the user.
+This document separates implemented foundation from planned pipeline. Milestones 1–2 use Next.js App Router, strict TypeScript, Tailwind CSS, Radix Dialog, self-hosted fonts and Supabase SSR. The Tiptap editor and browser-draft ingestion are implemented. Otto's local source-question preview now uses Gemini embeddings for semantic retrieval and Gemini chat to select validated source quotations. Account setup and Vercel deployment remain deferred.
 
 The existing Git history was imported into the previously empty SisAssist workspace. The original thesis-assistant checkout remains unchanged. The legacy Python API routes remain disconnected. The active document_service reuses the bounded Python parser without importing Ollama or vector-store code. See SOURCE_UPLOADS.md for the implemented local storage and request boundaries.
 
@@ -32,7 +32,7 @@ Private buckets: sources, assets, exports. A source upload requires a reserved s
 
 ## Implemented local ingestion and remaining cloud plan
 
-Browser files -> loopback FastAPI validation -> time-limited Python parser process -> extracted locations -> atomic IndexedDB metadata/file/text save -> project-scoped source library and PDF.js/text reader. This path has no embeddings and no server-side document retention. Authenticated cloud-mode uploads remain disabled.
+Browser files -> loopback FastAPI validation -> time-limited Python parser process -> extracted locations -> atomic IndexedDB metadata/file/text save -> project-scoped source library and PDF.js/text reader. During a source question, the local backend batches Gemini embedding requests and keeps vectors in a bounded process-memory cache. No source text or vector is persistently stored by this preview. Authenticated cloud-mode uploads remain disabled.
 
 The older cloud-ingestion proposal below is not implemented and must be revised around the agreed Python/FastAPI backend before deployment.
 
@@ -48,7 +48,9 @@ Version embedding model ID, dimensions and preprocessing. Index one profile at a
 
 ## Planned assistant (Milestones 4–5)
 
-A server-side adapter handles separate OpenAI-compatible chat and embedding providers. Initial candidates are qwen/qwen3.5-35b-a3b and qwen/qwen3-embedding-8b through OpenRouter. Environment variables allow changes; no proprietary fallback. Candidate quality is unverified until evaluated on app-specific evidence and abstention cases.
+The local preview is documented in [AI_SETUP.md](AI_SETUP.md). It embeds page-local chunks with `gemini-embedding-2`, caches up to 5,000 vectors by project/source content in process memory, combines semantic matches with keyword results, and sends up to five passages to `gemini-3.6-flash`. The model writes a conversational answer and selects supporting evidence IDs; the server validates those IDs and streams the answer with original quotations and resolved source locations. The browser checks quotations against its own project sources before displaying them. The four latest messages stay in browser memory for follow-ups and are not persisted; answers and vectors are temporary. This hosted proprietary Gemini trial departs from the original open-source AI requirement and is not ready for sensitive research data or public deployment.
+
+`GEMINI_API_KEY`, `GEMINI_API_BASE_URL`, `AI_CHAT_MODEL`, `AI_EMBED_MODEL`, dimensions and the similarity threshold are backend environment settings. There is no paid-model fallback or automatic retry. Free-tier quotas remain, and citations still need human relevance checks. Hosted account isolation, durable vectors, persistent chat and live-model quality evaluation remain pending.
 
 Research path: authorize project → persist/rate-limit request → embed query → SQL retrieval under owner/project filters → prompt with untrusted evidence → generate → validate source markers and passage offsets → stream segments → persist canonical citations.
 
